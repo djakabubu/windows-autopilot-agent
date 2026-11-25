@@ -1,6 +1,6 @@
 ﻿# Windows Autopilot Agent
 
-A Windows-only, terminal-based AI assistant for PowerShell administration and troubleshooting. It connects to OpenRouter and runs PowerShell commands only after local risk classification.
+A Windows-only AI assistant for PowerShell administration and troubleshooting, available as a terminal CLI and an optional React desktop preview. It connects to OpenRouter and runs PowerShell commands only after local risk classification.
 
 ## Status
 
@@ -13,7 +13,7 @@ This project is an independent personal project and is not affiliated with Micro
 - Windows PowerShell 5.1 or PowerShell 7 (`pwsh`)
 - An OpenRouter API key
 
-No third-party Python packages are required. The provided CMD launcher is optional; run the Python file directly from PowerShell or Command Prompt.
+The CLI uses only the Python standard library. The optional desktop UI requires Node.js 20.19 or newer (or 22.12 or newer), the WebView2 Runtime, and the extra Python dependency described below.
 
 ## Quick start (PowerShell)
 
@@ -65,13 +65,39 @@ Configuration environment variables: `OPENROUTER_API_KEY` (required), `OPENROUTE
 
 Runtime history files are created beside the program and are intentionally ignored by Git.
 
+## Optional desktop app (preview)
+
+The desktop app uses a React + TypeScript frontend hosted in a native Windows window by pywebview. The Python agent remains responsible for model requests, local risk assessment, explicit command approval, and PowerShell execution. The UI is bundled locally; it does not expose a network API or send commands directly to PowerShell.
+
+1. Install the optional Python desktop host:
+
+   ```powershell
+   python -m pip install -r requirements-gui.txt
+   ```
+
+2. Build the React UI:
+
+   ```powershell
+   Push-Location ui
+   npm ci
+   npm run build
+   Pop-Location
+   ```
+
+3. Configure `OPENROUTER_API_KEY` in the Windows user environment, then launch `run_gui.pyw`. You can also run `python .\run_gui.pyw` from a PowerShell session where the key is set; that launch method may leave the terminal window open.
+
+The desktop preview is Windows-only and requires WebView2. It starts with confirmation enabled; there is no GUI autopilot mode. The UI asks before every locally classified non-safe command and displays its exact PowerShell text, risk level, and rationale. This preview has no installer yet: Python, the optional pywebview dependency, Node.js for building, and the WebView2 Runtime must be installed separately. The CLI remains independently usable without these GUI dependencies.
+
 ## Development
 
-The program uses only the Python standard library. Validate syntax with:
+Validate the Python engine and run the focused task-event tests with:
 
 ```powershell
-py -3 -m py_compile windows_autopilot.py
+python -m py_compile windows_autopilot.py desktop_backend.py run_gui.pyw
+python -m unittest discover -s tests
 ```
+
+Build and type-check the desktop frontend from `ui` with `npm ci` and `npm run build`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and [RELEASE_NOTES.md](RELEASE_NOTES.md) for release notes.
 

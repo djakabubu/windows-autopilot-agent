@@ -62,7 +62,7 @@ import urllib.error
 import urllib.request
 from ctypes import wintypes
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Generator, Optional
 
 
 # ============================================================
@@ -1117,13 +1117,18 @@ def _decode_output(data: Optional[bytes]) -> str:
     return (data or b"").decode("utf-8", errors="replace")
 
 
-def execute_shell_command(command: str) -> tuple[str, str, int, float]:
+def execute_shell_command(
+    command: str,
+    show_progress: bool = True,
+    hidden_window: bool = False,
+) -> tuple[str, str, int, float]:
     """Execute an already-authorized command in PowerShell.
 
     Returns (stdout, stderr, returncode, duration_seconds).
     """
-    display_command(command)
-    print(dim("⏳ Running... (Ctrl+C to interrupt)"))
+    if show_progress:
+        display_command(command)
+        print(dim("⏳ Running... (Ctrl+C to interrupt)"))
     start = time.monotonic()
 
     encoded = _encode_powershell(command)
@@ -1149,15 +1154,18 @@ def execute_shell_command(command: str) -> tuple[str, str, int, float]:
         encoded,
     ]
 
+    process_options: dict[str, Any] = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "cwd": os.getcwd(),
+        "env": child_env,
+    }
+    if hidden_window and os.name == "nt":
+        process_options["creationflags"] = subprocess.CREATE_NO_WINDOW
+
     try:
-        process = subprocess.Popen(
-            args,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=os.getcwd(),
-            env=child_env,
-        )
+        process = subprocess.Popen(args, **process_options)
     except FileNotFoundError:
         return "", f"Unable to find PowerShell ({SHELL_EXE}).", 127, time.monotonic() - start
     except Exception as exc:
@@ -1244,46 +1252,40 @@ def append_execution_feedback(
     messages.append({"role": "user", "content": feedback})
 
 
-def run_task(
+def iter_task_events(
     prompt: str,
     messages: list[dict[str, str]],
     model: str,
     max_steps: int,
     autopilot: bool = False,
-) -> list[dict[str, str]]:
-    """Run a single task loop: model proposes, local engine decides, shell runs.
+    stream: bool = True,
+    show_progress: bool = True,
+    hidden_window: bool = False,
+) -> Generator[dict[str, Any], Optional[str], list[dict[str, str]]]:
+    """Run a task and yield presentation-independent events.
 
-    Returns the (possibly compacted) message list for the ongoing session.
+    Send "yes", "all", or "no" back when an approval event is yielded.
     """
     messages.append({"role": "user", "content": prompt})
     messages[:] = compact_messages(messages)
 
-    print(f"\n{Colors.BOLD}🎯 {prompt}{Colors.ENDC}")
-    if autopilot:
-        print(dim("🤖 AUTOPILOT MODE: no confirmation requested."))
-    print(dim("─" * 72))
     allow_caution = False
 
     step = 1
     while step <= max_steps:
-        print(
-            f"\n{Colors.CYAN}{Colors.BOLD}"
-            f"⟳ Step {step}/{max_steps}"
-            f"{Colors.ENDC}"
-        )
+        yield {"type": "status", "status": "thinking", "step": step, "max_steps": max_steps}
 
         try:
-            raw = call_openrouter(messages, model)
+            raw = call_openrouter(messages, model, stream=stream)
         except OpenRouterError as exc:
-            error(str(exc))
-            # Do not leave a "half-broken" context.
+            yield {"type": "error", "message": str(exc)}
             return messages
 
         data = parse_agent_response(raw)
         message, action = normalize_agent_response(data)
 
         if message:
-            print(f"\n{Colors.HEADER}{message}{Colors.ENDC}")
+            yield {"type": "assistant", "message": message}
 
         # Save the model's response in compact form.
         normalized_for_history = {
@@ -1299,7 +1301,7 @@ def run_task(
         })
 
         if not action:
-            success("Task finished.")
+            yield {"type": "complete"}
             return compact_messages(messages)
 
         command = action["command"]
@@ -1307,12 +1309,18 @@ def run_task(
 
         incompatibility = incompatible_windows_command(command)
         if incompatibility:
-            warning(f"Command not run: {incompatibility}")
             stderr = (
                 f"Command rejected locally: {incompatibility} "
                 "Return a Windows PowerShell command instead."
             )
-            show_execution_result("", stderr, 126)
+            yield {
+                "type": "command_result",
+                "command": command,
+                "stdout": "",
+                "stderr": stderr,
+                "code": 126,
+                "duration": 0.0,
+            }
             append_execution_feedback(messages, command, "", stderr, 126)
             messages[:] = compact_messages(messages)
             step += 1
@@ -1320,42 +1328,63 @@ def run_task(
 
         # The model does not decide the risk: the local engine always does.
         assessment = assess_command(command)
-
-        if agent_reason:
-            print(dim(f"Reason: {agent_reason}"))
-        print(
-            dim(
-                f"Local classification: {assessment.level} "
-                f"({', '.join(assessment.reasons[:3])})"
-            )
-        )
+        yield {
+            "type": "classification",
+            "level": assessment.level,
+            "reason": agent_reason,
+            "reasons": assessment.reasons,
+        }
 
         # In autopilot mode confirmation is never requested: run everything.
-        if not autopilot:
-            if assessment.level == "CAUTION" and allow_caution:
-                print(dim("✓ 'Similar' authorization active for this request."))
-            elif assessment.level != "SAFE":
-                decision = confirm_command(command, assessment, agent_reason)
-                if decision == "no":
-                    output = ""
-                    stderr = "Command rejected by the user."
-                    code = 125
+        needs_approval = (
+            not autopilot
+            and assessment.level != "SAFE"
+            and not (assessment.level == "CAUTION" and allow_caution)
+        )
+        if needs_approval:
+            decision = yield {
+                "type": "approval_required",
+                "command": command,
+                "reason": agent_reason,
+                "level": assessment.level,
+                "reasons": assessment.reasons[:5],
+            }
+            if decision == "no":
+                stderr = "Command rejected by the user."
+                yield {
+                    "type": "command_result",
+                    "command": command,
+                    "stdout": "",
+                    "stderr": stderr,
+                    "code": 125,
+                    "duration": 0.0,
+                }
+                append_execution_feedback(
+                    messages,
+                    command,
+                    "",
+                    stderr,
+                    125,
+                )
+                step += 1
+                continue
+            if decision == "all":
+                allow_caution = True
 
-                    show_execution_result(output, stderr, code)
-                    append_execution_feedback(
-                        messages,
-                        command,
-                        output,
-                        stderr,
-                        code,
-                    )
-                    step += 1
-                    continue
-                if decision == "all":
-                    allow_caution = True
-
-        output, stderr, code, duration = execute_shell_command(command)
-        show_execution_result(output, stderr, code, duration)
+        yield {"type": "status", "status": "acting", "step": step, "max_steps": max_steps}
+        output, stderr, code, duration = execute_shell_command(
+            command,
+            show_progress=show_progress,
+            hidden_window=hidden_window,
+        )
+        yield {
+            "type": "command_result",
+            "command": command,
+            "stdout": redact_secrets(limit_text(output.strip(), 6000)),
+            "stderr": redact_secrets(limit_text(stderr.strip(), 5000)),
+            "code": code,
+            "duration": duration,
+        }
         append_execution_feedback(messages, command, output, stderr, code)
         messages[:] = compact_messages(messages)
 
@@ -1363,25 +1392,87 @@ def run_task(
 
         # Limit reached: ask the user whether to continue.
         if step > max_steps:
-            warning(f"Reached the limit of {max_steps} steps.")
             if autopilot:
                 # In autopilot we continue automatically, without blocking.
                 max_steps += 25
-                print(dim(f"Autopilot: extending the limit to {max_steps} steps."))
                 continue
-            try:
-                choice = input(
-                    f"\n{Colors.BOLD}Continue? [Enter=yes, n=no]{Colors.ENDC} "
-                ).strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                choice = "n"
-            if choice in {"", "y", "yes"}:
+            choice = yield {"type": "step_limit", "max_steps": max_steps}
+            if choice == "continue":
                 max_steps += 25
-                print(dim(f"OK, extending the limit to {max_steps} steps."))
             else:
-                break
+                yield {"type": "stopped"}
+                return compact_messages(messages)
 
+    yield {"type": "complete"}
     return compact_messages(messages)
+
+
+def run_task(
+    prompt: str,
+    messages: list[dict[str, str]],
+    model: str,
+    max_steps: int,
+    autopilot: bool = False,
+) -> list[dict[str, str]]:
+    """Run one task while adapting structured engine events to the terminal."""
+    print(f"\n{Colors.BOLD}🎯 {prompt}{Colors.ENDC}")
+    if autopilot:
+        print(dim("🤖 AUTOPILOT MODE: no confirmation requested."))
+    print(dim("─" * 72))
+
+    task = iter_task_events(prompt, messages, model, max_steps, autopilot)
+    try:
+        event = next(task)
+        while True:
+            decision: Optional[str] = None
+            event_type = event["type"]
+
+            if event_type == "status" and event.get("status") == "thinking":
+                print(
+                    f"\n{Colors.CYAN}{Colors.BOLD}"
+                    f"⟳ Step {event['step']}/{event['max_steps']}"
+                    f"{Colors.ENDC}"
+                )
+            elif event_type == "assistant":
+                print(f"\n{Colors.HEADER}{event['message']}{Colors.ENDC}")
+            elif event_type == "classification":
+                if event["reason"]:
+                    print(dim(f"Reason: {event['reason']}"))
+                print(
+                    dim(
+                        f"Local classification: {event['level']} "
+                        f"({', '.join(event['reasons'][:3])})"
+                    )
+                )
+            elif event_type == "approval_required":
+                assessment = RiskAssessment(event["level"], event["reasons"])
+                decision = confirm_command(event["command"], assessment, event["reason"])
+            elif event_type == "command_result":
+                if event["code"] == 126:
+                    warning(f"Command not run: {event['stderr']}")
+                show_execution_result(
+                    event["stdout"],
+                    event["stderr"],
+                    event["code"],
+                    event["duration"],
+                )
+            elif event_type == "step_limit":
+                warning(f"Reached the limit of {event['max_steps']} steps.")
+                try:
+                    choice = input(
+                        f"\n{Colors.BOLD}Continue? [Enter=yes, n=no]{Colors.ENDC} "
+                    ).strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    choice = "n"
+                decision = "continue" if choice in {"", "y", "yes"} else "stop"
+            elif event_type == "error":
+                error(event["message"])
+            elif event_type == "complete":
+                success("Task finished.")
+
+            event = task.send(decision)
+    except StopIteration as result:
+        return result.value
 
 
 # ============================================================

@@ -14,10 +14,11 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - Mantenere visibili un campo di testo e un comando per inviare la richiesta. Voce, animazioni o conoscenze preliminari di Windows non devono essere necessarie.
 - Mostrare avanzamento ed errori nella finestra o nella conversazione. Le animazioni non devono mai coprire comandi, risultati, approvazioni o controlli.
 - Conservare la classificazione locale del rischio e il flusso di approvazione esplicita. Prima di eseguire un comando che richiede approvazione, mostrare il comando PowerShell esatto, il livello e il motivo del rischio, e scelte chiare per eseguirlo o rifiutarlo.
+- Nella versione grafica, avviare PowerShell senza una finestra di console visibile, continuando a catturare output, errori, timeout e risultato da mostrare nella chat. Nascondere la console non deve nascondere il comando né sostituire la conferma dell'utente.
 - Non attivare la modalità autopilot per impostazione predefinita e non nasconderla dietro un'interfaccia giocosa.
 - Non riscrivere i prompt del modello/sistema durante l'implementazione iniziale della GUI. Migliorare semplicità e cordialità dei prompt sarà una fase successiva e verificabile separatamente.
 - La GUI iniziale non aggiunge lettura dello schermo, automazione di mouse/tastiera, interazione vocale o nuove capacità del sistema: espone tramite una nuova interfaccia le funzionalità già presenti.
-- Direzione consigliata per la UI: React + TypeScript ospitati in una finestra desktop WebView2, con Python come backend tramite un bridge locale come pywebview. Questo consente animazioni CSS/SVG e mantiene il motore esistente in Python. Confrontare questa opzione con PySide6/QML in una prova pratica prima della scelta definitiva; non esporre PowerShell direttamente al frontend.
+- Direzione scelta: React + TypeScript compilati localmente e ospitati in una finestra desktop WebView2 tramite pywebview, con Python come backend. Il bridge espone solo operazioni/eventi applicativi; non espone PowerShell direttamente al frontend. La distribuzione con installer resta da verificare.
 
 ## Attività
 
@@ -34,68 +35,69 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Aggiungere battiti di palpebre e piccoli movimenti degli occhi in tutti gli stati.
 - [x] Aggiungere tre varianti non ripetute consecutivamente per pensiero e azione.
 - [x] Dare alla mascotte un'espressione dispiaciuta e un movimento di assestamento nello stato di errore.
-- [ ] Scegliere il toolkit grafico e verificare una modalità minima di distribuzione per Windows.
-- [ ] Definire un confine tra motore e interfaccia, indipendente dalla UI, mantenendo la CLI esistente.
-- [ ] Realizzare la prima finestra grafica con conversazione, richieste in linguaggio naturale, avanzamento e approvazioni esplicite.
-- [ ] Aggiungere illustrazione o segnaposto della mascotte e transizioni animate legate alle sue attività.
+- [x] Valutare come avviare PowerShell senza una finestra di console visibile, mantenendo output e codici di uscita acquisibili.
+- [x] Scegliere React + TypeScript, Vite e pywebview come toolkit per la prima finestra desktop.
+- [x] Definire un flusso di eventi del motore indipendente dalla UI e mantenere la CLI come adattatore.
+- [x] Realizzare la prima finestra grafica con conversazione, richieste in linguaggio naturale, stato dell'attività e approvazioni esplicite.
+- [x] Collegare gli stati della mascotte agli eventi del motore.
+- [ ] Verificare l'avvio su Windows con WebView2 e decidere se/come distribuire un installer.
 - [ ] Verificare sicurezza, reattività, accessibilità, compatibilità Windows e documentazione.
 - [ ] In una fase successiva, rendere prompt e risposte più cordiali e semplici per chi è alle prime armi.
 
 ## Stato attuale
 
 - Repository: `djakabubu/windows-autopilot-agent`; branch: `UserInterfaceAnimated`; ultimo commit: `416c6c9` (`Prepare Windows Autopilot Agent for public release`).
-- Il repository era pulito prima dell'aggiornamento di questo piano.
+- Il repository aveva modifiche locali a `plan.md` prima dell'integrazione della GUI; le modifiche preesistenti sono state mantenute e aggiornate in questo piano. La GUI e il frontend sono attualmente modifiche locali non ancora committate.
 - L'applicazione attuale è una CLI Python per Windows. Il ciclo modello/attività, la valutazione del rischio dei comandi, le richieste di conferma e l'esecuzione di processi PowerShell sono implementati in `windows_autopilot.py`.
-- La CLI usa direttamente `print()` e `input()` bloccanti; le operazioni sul modello e su PowerShell sono sincrone. Sono i principali punti da affrontare per evitare che la GUI si blocchi.
-- Sono supportati Python 3.9 o superiore e Windows PowerShell 5.1 o PowerShell 7. Attualmente il progetto non ha dipendenze Python di terze parti.
-- Non è ancora stata avviata alcuna implementazione grafica. Sono disponibili diversi concept generati, non definitivi e non integrati: [primo](./openrouter-image-2026-11-25T10-07-39-623Z-db90b1c9-1.png), [secondo](./openrouter-image-2026-11-25T10-10-52-027Z-acb2ce0c-1.png), [variante ambrata](./openrouter-image-2026-11-25T10-16-24-348Z-510658e2-1.png) e [variante astratta più recente](./openrouter-image-2026-11-25T10-16-52-884Z-bd4cc666-1.png).
+- La CLI mantiene `print()` e `input()` tramite un adattatore; il ciclo condiviso ora produce eventi strutturati. Modello e PowerShell girano in un worker quando chiamati dalla GUI, senza bloccare la finestra.
+- Sono supportati Python 3.9 o superiore e Windows PowerShell 5.1 o PowerShell 7. Il motore/CLI resta basato sulla standard library; la GUI aggiunge la dipendenza opzionale pywebview. Il frontend usa Node.js 20.19+ oppure 22.12+.
+- È stata integrata una prima app desktop React + TypeScript in `ui/`, servita localmente da pywebview tramite `run_gui.pyw` e `desktop_backend.py`. Il bridge usa gli eventi strutturati del motore e le richieste di conferma; la CLI continua a usare lo stesso flusso motore. La build frontend e i test mirati passano; l'avvio nativo WebView2 non è stato verificato in questa sessione.
+- La demo grafica autonoma resta disponibile come riferimento visivo; i concept visivi generati restano non definitivi: [primo](./openrouter-image-2026-11-25T10-07-39-623Z-db90b1c9-1.png), [secondo](./openrouter-image-2026-11-25T10-10-52-027Z-acb2ce0c-1.png), [variante ambrata](./openrouter-image-2026-11-25T10-16-24-348Z-510658e2-1.png) e [variante astratta più recente](./openrouter-image-2026-11-25T10-16-52-884Z-bd4cc666-1.png).
 - Il concept più recente abbandona il cielo stellato e la sfera sopra la testa, usando una forma ambrata fluida e indefinita con pochi tratti antropomorfi su un pannello uniforme. È il riferimento visivo corrente, ma resta modificabile.
-- I mockup mostrano una chat e una conferma esplicita di un comando PowerShell. Non sono asset finali: la mascotte andrà ridisegnata o ricostruita in forma vettoriale prima di animarla.
-- È stato creato un prototipo autonomo SVG animato: [mascot-organic-demo.svg](./mascot-organic-demo.svg). Usa movimenti morbidi, un battito di ciglia discreto e rispetta l'impostazione di movimento ridotto del sistema; non è ancora integrato nella GUI.
+- I mockup mostrano una chat e una conferma esplicita di un comando PowerShell. Non sono asset finali; la GUI usa per ora il prototipo SVG esistente con transizioni di stato CSS essenziali.
+- È stato creato un prototipo SVG animato: [mascot-organic-demo.svg](./mascot-organic-demo.svg). La UI React lo riusa come asset e pilota le transizioni di stato; le animazioni dettagliate della demo non sono ancora state portate tutte nella UI integrata.
 - È disponibile una finestra demo locale e interattiva: [mascot-chat-demo.html](./mascot-chat-demo.html). Usa tema chiaro per impostazione predefinita con selettore scuro. Gli occhi si muovono e sbattono le palpebre indipendentemente dallo stato; pensiero e azione scelgono tra tre varianti, evitando di ripetere subito quella precedente. L'azione mostra un documento, una cartella o una lente; il parlato anima la bocca. In caso di errore la mascotte assume un'espressione dispiaciuta e si assesta con un movimento delicato. Il flusso di approvazione è simulato: il motore non è collegato e non vengono eseguiti comandi.
-- Proposta tecnica corrente: React + TypeScript per la UI e bridge WebView2/pywebview verso Python; da validare con una prova pratica rispetto a PySide6/QML.
-- Questo documento registra la direzione concordata e la sequenza di lavoro; non avvia da solo la codifica.
+- Architettura attuale: React + TypeScript/Vite, UI compilata e caricata da file locale in pywebview, bridge Python tipizzato a eventi applicativi e motore Windows esistente.
+- La funzione `execute_shell_command` in `windows_autopilot.py` avvia PowerShell con stdout/stderr catturati e timeout; nella GUI usa `subprocess.CREATE_NO_WINDOW`, mantenendo output e codice di uscita. `run_gui.pyw` avvia l'host senza console quando lanciato tramite l'associazione Windows per i file `.pyw`.
+- `CREATE_NO_WINDOW` nasconde la console di PowerShell, non eventuali finestre che un comando avvia autonomamente e non limita i privilegi del processo. Il comando e le richieste di conferma devono quindi restare visibili nella UI.
+- Questo documento registra la direzione concordata, il lavoro integrato finora e le verifiche ancora da fare.
 
 ## Piano di implementazione
 
-### 1. Scegliere toolkit grafico e distribuzione
+### 1. Toolkit grafico e distribuzione
 
-- Confrontare React + TypeScript in WebView2 tramite pywebview con PySide6/QML. Creare una prova pratica con finestra, mascotte segnaposto, messaggio chat e indicatore aggiornato da un'attività in background.
-- Verificare comportamento su Windows 10/11, compatibilità con Python 3.9, disponibilità di WebView2, dimensioni del pacchetto, installazione delle dipendenze e se la prima versione debba includere un eseguibile distribuibile.
-- Scegliere il toolkit più semplice che soddisfa l'UX concordata. Annotare nel README le implicazioni per dipendenze e distribuzione.
-- Se si sceglie React, mantenere il motore Python come autorità per modello, classificazione del rischio e PowerShell; esporre al frontend solo operazioni/eventi applicativi strettamente necessari tramite il bridge.
+- Scelta effettuata: React + TypeScript/Vite in pywebview; la build locale è caricata come file statico nella finestra nativa.
+- README documenta dipendenze opzionali, build e avvio. Il packaging/installer non è incluso nella preview.
+- Da completare: verificare su Windows con WebView2 Runtime e decidere la modalità di distribuzione.
 
-**Criterio di completamento:** toolkit e modalità di avvio/distribuzione sono scelti sulla base di una prova funzionante su Windows, non solo dell'aspetto.
+**Criterio di completamento:** toolkit scelto e UI compilabile; il criterio di avvio nativo/distribuzione resta aperto fino alla prova manuale su Windows.
 
 ### 2. Separare gli eventi del motore dalla presentazione terminale
 
-- Individuare le operazioni del ciclo di attività attualmente legate all'output e all'input del terminale.
-- Introdurre un'interfaccia indipendente dalla UI per inviare richieste e ricevere eventi strutturati e tipizzati, per esempio testo dell'assistente, avanzamento, comando proposto, richiesta di approvazione, risultato del comando, errore e fine dell'attività.
-- Inviare le decisioni di approvazione dall'interfaccia al flusso di sicurezza locale esistente. Comando esatto e dettagli del rischio devono restare disponibili all'utente.
-- Eseguire le operazioni sul modello e su PowerShell fuori dal thread della GUI. Inoltrare gli aggiornamenti in modo sicuro al thread della UI e supportare l'annullamento dove consentito dall'operazione sottostante.
-- Mantenere funzionante la CLI attuale tramite un adattatore per il terminale e non modificare in questa fase il contenuto dei prompt.
+- Completato in `iter_task_events`: eventi di stato, risposta, classificazione locale, approvazione, risultato, errore e completamento.
+- La CLI usa un adattatore terminale; la GUI consuma lo stesso flusso su un worker in background.
+- Il bridge invia la decisione esplicita di approvazione alla valutazione del motore; la UI non può inviare comandi shell arbitrari.
+- PowerShell usa `CREATE_NO_WINDOW` nella GUI e continua a restituire output, errori, timeout e codice di uscita. Non è stato aggiunto supporto all'annullamento.
+- I prompt esistenti non sono stati modificati.
 
-**Criterio di completamento:** CLI e un piccolo test automatico possono usare lo stesso percorso del motore; il confine indipendente dalla UI segnala esplicitamente errori e richieste di approvazione.
+**Criterio di completamento:** raggiunto per il flusso condiviso; i test automatici verificano completamento e rifiuto di un comando.
 
 ### 3. Realizzare la prima conversazione grafica
 
-- Creare una finestra ridimensionabile con vista della conversazione, campo di testo, comando di invio e modo chiaro per iniziare una nuova conversazione.
-- Visualizzare i messaggi dell'utente e dell'assistente in fumetti leggibili. Gestire messaggi lunghi, testo selezionabile e scorrimento.
-- Mostrare attività e avanzamento senza bloccare la finestra.
-- Presentare le richieste di approvazione in una scheda o finestra inequivocabile con comando PowerShell esatto, livello di rischio, breve motivazione e azioni per eseguirlo o rifiutarlo. È necessaria un'azione deliberata; chiudere o ignorare la richiesta non deve eseguire il comando.
-- Mostrare risultati e problemi dei comandi nel contesto. Rendere disponibili i dettagli tecnici utili senza sovraccaricare i principianti con lo stile del terminale.
-- Conservare il comportamento esistente di permessi e valutazione del rischio; non nascondere errori e non attivare l'autopilot come ripiego silenzioso.
+- Implementati nella UI React: finestra ridimensionabile, conversazione, nuovo chat, input, indicatore attività, risultati e scheda di approvazione con comando esatto/rischio/motivo.
+- Le richieste restano in attesa finché l'utente non approva o rifiuta; la chiusura del bridge rifiuta l'approvazione pendente.
+- L'autopilot non è esposto dalla GUI. Build TypeScript/Vite superata; restano verifiche manuali di accessibilità e dimensioni su Windows.
 
 **Criterio di completamento:** l'utente può inviare una richiesta, osservare l'attività, approvare o rifiutare un comando e leggere il risultato senza usare il terminale.
 
 ### 4. Aggiungere mascotte e animazioni
 
-- Iniziare con un asset segnaposto sostituibile, così il lavoro sulla UI e sul motore non dipende dall'illustrazione definitiva.
+- L'asset SVG esistente è usato come mascotte provvisoria.
 - Ricostruire la mascotte come SVG a livelli o percorsi vettoriali modificabili, non animare direttamente il mockup raster.
 - Riutilizzare una sola mascotte SVG con varianti di stato, invece di duplicare un SVG per ogni animazione. Associare a ogni stato transizioni CSS/SVG coerenti; riservare elementi o percorsi sovrapposti alle variazioni d'espressione e agli oggetti contestuali.
-- In React, pilotare lo stato con una proprietà o un attributo `data-state`; usare CSS/SVG per movimenti e transizioni. Valutare animazioni più articolate solo se realmente necessarie.
+- In React lo stato viene pilotato tramite `data-state` e CSS; per ora le transizioni sono essenziali e non includono tutte le varianti animate della demo.
 - Nella demo, scegliere casualmente una variante di pensiero/azione senza ripetere immediatamente la precedente. Nell'app collegata al motore, preferire una scelta contestuale basata su eventi strutturati (per esempio ricerca, file o impostazioni) quando il backend fornirà il tipo di attività.
-- Mantenere i movimenti brevi, discreti e non bloccanti. Prevedere una modalità statica o a movimento ridotto; nessuna informazione essenziale deve dipendere solo dall'animazione.
+- Mantenere i movimenti brevi, discreti e non bloccanti. `prefers-reduced-motion` è rispettato e nessuna informazione essenziale dipende solo dall'animazione.
 - Scegliere uno stile visivo divertente e accogliente per adulti e principianti, senza presumere che l'utente sia un bambino.
 - La mascotte deve essere un'interlocutrice, non un sostituto di messaggi leggibili, controlli o approvazioni dei comandi.
 - Se servono asset originali, valutare in questa fase la generazione tramite MCP OpenRouter Images; controllare prima le opzioni del modello scelto. Se l'immagine richiede uno sfondo trasparente, usare MCP Remove Background e verificarne il risultato prima di integrarla. Non generare asset se un segnaposto o un'illustrazione già disponibile sono sufficienti.
@@ -120,6 +122,8 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 ## Prossimi passi
 
-- [ ] Valutare la demo e realizzare una prova pratica per toolkit grafico e distribuzione.
-- [ ] Dopo aver scelto il toolkit, implementare il confine motore/controller e la prima GUI.
-- [ ] Lasciare la revisione dei prompt e della personalità a una fase successiva, dopo aver validato il flusso d'interazione grafico.
+- [x] Collegare la UI desktop al motore Python e implementare il flusso end-to-end con eventi, risultati e conferme esplicite.
+- [x] Avviare PowerShell dalla GUI con `CREATE_NO_WINDOW`, mantenendo output, errori, timeout e codice di uscita.
+- [x] Mantenere la CLI e condividere il percorso strutturato del motore tra CLI e GUI.
+- [ ] Verificare manualmente la GUI su Windows/WebView2, incluse approvazione, rifiuto, ridimensionamento e movimento ridotto.
+- [ ] Decidere e documentare il packaging/installer; lasciare revisione dei prompt/persona a una fase successiva.

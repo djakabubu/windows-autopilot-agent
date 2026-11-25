@@ -1,0 +1,2 @@
+# Optional native desktop host; the CLI still uses only the Python standard library.
+pywebview>=5,<6
