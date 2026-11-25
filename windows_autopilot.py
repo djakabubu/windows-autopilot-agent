@@ -1133,12 +1133,22 @@ def execute_shell_command(
 
     encoded = _encode_powershell(command)
     if len(encoded) > MAX_ENCODED_COMMAND_CHARS:
-        return (
-            "",
-            "Command too long for the Windows command line. Split it into smaller steps.",
-            1,
-            time.monotonic() - start,
-        )
+        stdout = ""
+        stderr = "Command too long for the Windows command line. Split it into smaller steps."
+        duration = time.monotonic() - start
+        from activity_log import write_activity_log
+
+        write_activity_log({
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "source": "powershell",
+            "event": "command_result",
+            "command": command,
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": 1,
+            "duration_seconds": duration,
+        })
+        return stdout, stderr, 1, duration
 
     # The OpenRouter key is not needed by PowerShell commands and must not be
     # accidentally exposed to `env`, temporary scripts, subprocesses, etc.
@@ -1164,34 +1174,78 @@ def execute_shell_command(
     if hidden_window and os.name == "nt":
         process_options["creationflags"] = subprocess.CREATE_NO_WINDOW
 
+    from activity_log import write_activity_log
+
     try:
         process = subprocess.Popen(args, **process_options)
     except FileNotFoundError:
-        return "", f"Unable to find PowerShell ({SHELL_EXE}).", 127, time.monotonic() - start
+        stdout = ""
+        stderr = f"Unable to find PowerShell ({SHELL_EXE})."
+        duration = time.monotonic() - start
+        write_activity_log({
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "source": "powershell",
+            "event": "command_result",
+            "command": command,
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": 127,
+            "duration_seconds": duration,
+        })
+        return stdout, stderr, 127, duration
     except Exception as exc:
-        return "", f"Execution error: {exc}", 1, time.monotonic() - start
+        stdout = ""
+        stderr = f"Execution error: {exc}"
+        duration = time.monotonic() - start
+        write_activity_log({
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "source": "powershell",
+            "event": "command_result",
+            "command": command,
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": 1,
+            "duration_seconds": duration,
+        })
+        return stdout, stderr, 1, duration
 
     try:
         stdout_bytes, stderr_bytes = process.communicate(timeout=COMMAND_TIMEOUT)
     except subprocess.TimeoutExpired:
         kill_process_tree(process.pid)
         stdout_bytes, stderr_bytes = process.communicate()
-        return (
-            _decode_output(stdout_bytes),
-            _decode_output(stderr_bytes) + f"\nTimeout after {COMMAND_TIMEOUT}s.",
-            124,
-            time.monotonic() - start,
-        )
+        stdout = _decode_output(stdout_bytes)
+        stderr = _decode_output(stderr_bytes) + f"\nTimeout after {COMMAND_TIMEOUT}s."
+        duration = time.monotonic() - start
+        write_activity_log({
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "source": "powershell",
+            "event": "command_result",
+            "command": command,
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": 124,
+            "duration_seconds": duration,
+        })
+        return stdout, stderr, 124, duration
     except KeyboardInterrupt:
         kill_process_tree(process.pid)
         raise
 
-    return (
-        _decode_output(stdout_bytes),
-        _decode_output(stderr_bytes),
-        process.returncode,
-        time.monotonic() - start,
-    )
+    stdout = _decode_output(stdout_bytes)
+    stderr = _decode_output(stderr_bytes)
+    duration = time.monotonic() - start
+    write_activity_log({
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "source": "powershell",
+        "event": "command_result",
+        "command": command,
+        "stdout": stdout,
+        "stderr": stderr,
+        "exit_code": process.returncode,
+        "duration_seconds": duration,
+    })
+    return stdout, stderr, process.returncode, duration
 
 
 def show_execution_result(stdout: str, stderr: str, code: int, duration: float = 0.0) -> None:
@@ -1266,6 +1320,14 @@ def iter_task_events(
 
     Send "yes", "all", or "no" back when an approval event is yielded.
     """
+    from activity_log import write_activity_log
+
+    write_activity_log({
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "source": "agent",
+        "event": "conversation_user",
+        "text": prompt,
+    })
     messages.append({"role": "user", "content": prompt})
     messages[:] = compact_messages(messages)
 
@@ -1278,6 +1340,12 @@ def iter_task_events(
         try:
             raw = call_openrouter(messages, model, stream=stream)
         except OpenRouterError as exc:
+            write_activity_log({
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "source": "agent",
+                "event": "api_error",
+                "details": str(exc),
+            })
             yield {"type": "error", "message": str(exc)}
             return messages
 
@@ -1285,6 +1353,12 @@ def iter_task_events(
         message, action = normalize_agent_response(data)
 
         if message:
+            write_activity_log({
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "source": "agent",
+                "event": "conversation_assistant",
+                "text": message,
+            })
             yield {"type": "assistant", "message": message}
 
         # Save the model's response in compact form.

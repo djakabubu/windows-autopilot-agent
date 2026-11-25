@@ -161,7 +161,7 @@ function App() {
       }
     };
 
-    const timer = window.setInterval(() => void poll(), 250);
+    const timer = window.setInterval(() => void poll(), 2000);
     const presence = new EventSource("/api/presence");
     const notifyShutdown = () => {
       navigator.sendBeacon("/api/shutdown");

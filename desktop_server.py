@@ -35,6 +35,14 @@ ERROR_LOG = ERROR_DIRECTORY / "error.log"
 
 def write_error_log(title: str, details: str) -> None:
     try:
+        from activity_log import write_activity_log
+
+        write_activity_log({
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "source": "server",
+            "event": title,
+            "details": details.rstrip(),
+        })
         ERROR_DIRECTORY.mkdir(parents=True, exist_ok=True)
         with ERROR_LOG.open("a", encoding="utf-8") as log_file:
             log_file.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] {title}\n")
@@ -42,7 +50,7 @@ def write_error_log(title: str, details: str) -> None:
     except Exception:
         try:
             if sys.__stderr__:
-                sys.__stderr__.write(f"Could not write {ERROR_LOG}\n{title}\n{details}\n")
+                sys.__stderr__.write(f"Could not write {ERROR_LOG}\\n{title}\\n{details}\\n")
         except Exception:
             pass
 

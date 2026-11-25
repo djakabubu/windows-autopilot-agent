@@ -6,9 +6,11 @@ import os
 import queue
 import threading
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import windows_autopilot as engine
+from activity_log import write_activity_log
 
 
 class DesktopBridge:
@@ -55,6 +57,7 @@ class DesktopBridge:
             if self._busy:
                 return {"ok": False, "error": "È già in corso una richiesta."}
             self._busy = True
+            self._log_activity("user_request", text=request)
             worker = threading.Thread(
                 target=self._run_task,
                 args=(request,),
@@ -73,6 +76,11 @@ class DesktopBridge:
                 return {"ok": False, "error": "La richiesta di conferma non è più attiva."}
             if pending["event"].is_set():
                 return {"ok": False, "error": "La decisione per questo comando è già stata inviata."}
+            self._log_activity(
+                "approval_decision",
+                command=pending["command"],
+                approved=bool(approved),
+            )
             pending["approved"] = bool(approved)
             pending["event"].set()
         return {"ok": True}
@@ -91,6 +99,14 @@ class DesktopBridge:
             if self._pending_approval:
                 self._pending_approval["approved"] = False
                 self._pending_approval["event"].set()
+
+    def _log_activity(self, event: str, **details: Any) -> None:
+        write_activity_log({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "desktop",
+            "event": event,
+            **details,
+        })
 
     def _emit(self, event: dict[str, Any]) -> None:
         self._events.put(event)
@@ -112,12 +128,19 @@ class DesktopBridge:
                 event_type = event["type"]
 
                 if event_type == "approval_required":
+                    self._log_activity(
+                        "command_proposed",
+                        command=event["command"],
+                        risk=event["level"],
+                        reason=event["reason"],
+                    )
                     approval_id = uuid.uuid4().hex
                     approval_event = threading.Event()
                     pending = {
                         "id": approval_id,
                         "event": approval_event,
                         "approved": False,
+                        "command": event["command"],
                     }
                     with self._lock:
                         self._pending_approval = pending
@@ -139,6 +162,14 @@ class DesktopBridge:
                 elif event_type == "assistant":
                     self._emit({"type": "message", "text": event["message"]})
                 elif event_type == "command_result":
+                    self._log_activity(
+                        "command_result",
+                        command=event["command"],
+                        stdout=event["stdout"],
+                        stderr=event["stderr"],
+                        exit_code=event["code"],
+                        duration_seconds=event["duration"],
+                    )
                     self._emit({"type": "command_result", **event})
                 elif event_type == "step_limit":
                     self._emit({

@@ -82,7 +82,7 @@ The desktop app uses a locally hosted React + TypeScript frontend in a Microsoft
 
 The desktop app is Windows-only and requires Python 3.9+ and Node.js only when the UI needs to be built. Microsoft Edge is used when installed; otherwise the default browser opens. The server listens only on `127.0.0.1:43127`, requires a local `Host`, and shuts down a few seconds after the last app window closes. For development, run `python .\run_gui.pyw --server` to keep the server alive, then open `http://127.0.0.1:43127/`. The app starts with confirmation enabled; there is no GUI autopilot mode. The UI asks before every locally classified non-safe command and displays its exact PowerShell text, risk level, and rationale. This preview has no installer yet. The CLI remains independently usable without the desktop dependencies.
 
-Server errors are recorded in `%LOCALAPPDATA%\WindowsAutopilotAgent\error.log`.
+Server errors are recorded in `%LOCALAPPDATA%\WindowsAutopilotAgent\error.log`. Agent activity is recorded locally in `%LOCALAPPDATA%\WindowsAutopilotAgent\activity.log` as JSON Lines: prompts/replies, proposed PowerShell commands, approval decisions, command output and exit codes, plus server errors. Secrets matching the agent's redaction rules are masked; logs rotate at 5 MiB with one backup. The log is for inspection only and is not a replayable `.ps1` script. UI status and event checks run every 2 seconds.
 
 ## Development
 
