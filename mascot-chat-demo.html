@@ -1,0 +1,1072 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo - Assistente Windows</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", "Segoe UI Variable", system-ui, sans-serif;
+      color: #263231;
+      background: #f4f4f1;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --ink: #263231;
+      --muted: #74807d;
+      --line: #e5e6e0;
+      --paper: #ffffff;
+      --ochre: #bd823d;
+      --ochre-dark: #93602d;
+      --panel: #f7f7f3;
+      --panel-text: #263231;
+      --panel-muted: #74807d;
+      --card: #fcfbf7;
+      --card-border: #e7dcc6;
+      --button: #ffffff;
+      --button-border: #d9ddd7;
+      --user-bubble: #f7f1e5;
+      --command-bg: #f1f1ec;
+    }
+
+    * { box-sizing: border-box; }
+
+    .window[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e7e9e5;
+      --muted: #a9b1ad;
+      --line: #39413f;
+      --paper: #202627;
+      --panel: #292f30;
+      --panel-text: #eeefe9;
+      --panel-muted: #b7c1bc;
+      --card: #292e2d;
+      --card-border: #4a4b43;
+      --button: #303635;
+      --button-border: #4a5550;
+      --user-bubble: #383329;
+      --command-bg: #1b2020;
+    }
+
+    body {
+      min-width: 360px;
+      min-height: 100vh;
+      margin: 0;
+      padding: 28px;
+      display: grid;
+      place-items: center;
+      background: #f4f4f1;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .window {
+      width: min(1120px, 100%);
+      height: min(760px, calc(100vh - 56px));
+      min-height: 590px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #d5d8d1;
+      border-radius: 17px;
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 0 24px 70px #28343124, 0 2px 8px #28343112;
+    }
+
+    .titlebar {
+      height: 54px;
+      flex: 0 0 54px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 19px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+
+    .brand-mark {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--ochre);
+      box-shadow: 0 0 0 4px #bd823d1c;
+    }
+
+    .titlebar strong { font-size: 14px; font-weight: 650; letter-spacing: .01em; }
+    .theme-toggle {
+      min-height: 31px;
+      margin-left: auto;
+      padding: 5px 9px;
+      border: 1px solid var(--button-border);
+      border-radius: 7px;
+      color: var(--ink);
+      background: var(--button);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .theme-toggle:hover { background: var(--command-bg); }
+
+    .demo-tag {
+      margin-left: 0;
+      padding: 5px 9px;
+      border: 1px solid #e8dfcc;
+      border-radius: 999px;
+      color: #765d37;
+      background: #faf6ec;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+
+    .window[data-theme="dark"] {
+      border-color: #3a4241;
+      box-shadow: 0 24px 70px #00000045, 0 2px 8px #00000035;
+    }
+
+    .window[data-theme="dark"] .demo-tag {
+      border-color: #544937;
+      color: #dec99c;
+      background: #373229;
+    }
+
+    .window[data-theme="dark"] .message {
+      border-color: var(--line);
+      background: #282f30;
+    }
+
+    .window[data-theme="dark"] .message.user {
+      border-color: #554a37;
+      background: var(--user-bubble);
+    }
+
+    .window[data-theme="dark"] .approval-card {
+      border-color: var(--card-border);
+      background: var(--card);
+    }
+
+    .window[data-theme="dark"] .risk {
+      color: #e5c992;
+      background: #51432d;
+    }
+
+    .window[data-theme="dark"] .command {
+      color: #dce0db;
+      background: var(--command-bg);
+    }
+
+    .window[data-theme="dark"] .composer input {
+      border-color: var(--button-border);
+      color: var(--ink);
+      background: #252b2c;
+    }
+
+    .window[data-theme="dark"] .button:not(.primary):hover,
+    .window[data-theme="dark"] .theme-toggle:hover {
+      background: #3a4241;
+    }
+
+    .window[data-theme="dark"] .message-label { color: #a9b1ad; }
+    .window[data-theme="dark"] .button:not(.primary):hover { color: var(--ink); }
+
+    .body {
+      min-height: 0;
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(260px, 34%) 1fr;
+    }
+
+    .mascot-panel {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 24px 24px;
+      color: var(--panel-text);
+      background: var(--panel);
+    }
+
+    .mascot-panel h1 {
+      align-self: flex-start;
+      margin: 0 0 3px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .mascot-panel .subhead {
+      align-self: flex-start;
+      margin: 0;
+      color: var(--panel-muted);
+      font-size: 12px;
+    }
+
+    .mascot-stage {
+      position: relative;
+      width: min(100%, 300px);
+      margin: auto 0 10px;
+      isolation: isolate;
+    }
+
+    .mascot-stage::before {
+      position: absolute;
+      z-index: -1;
+      inset: 20% 12%;
+      border-radius: 50%;
+      background: #d99a3b0d;
+      content: "";
+      transition: box-shadow 550ms ease, background 550ms ease;
+    }
+
+    .mascot-stage[data-state="listening"]::before {
+      background: #d99a3b16;
+      box-shadow: 0 0 0 14px #d99a3b08, 0 0 50px #d99a3b16;
+    }
+
+    .mascot-art {
+      display: block;
+      width: 100%;
+      height: auto;
+      filter: drop-shadow(0 18px 22px #151e1c35);
+      transition: transform 600ms cubic-bezier(.2, .75, .25, 1), filter 600ms ease;
+    }
+
+    .mascot-art .drift {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: idle-drift 6s ease-in-out infinite;
+    }
+
+    .mascot-art .flow {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: idle-flow 8s ease-in-out infinite;
+    }
+
+    .mascot-art .eyes {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: gaze-idle 8.5s ease-in-out infinite;
+    }
+
+    .mascot-art .eye {
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .mascot-art.is-blinking .eye {
+      animation: blink 150ms ease-in-out both;
+    }
+
+    .mascot-art .mouth-open,
+    .mascot-art .mouth-sad,
+    .mascot-art .action-prop,
+    .mascot-art .thinking-dots,
+    .mascot-art .success-mark,
+    .mascot-art .error-brows,
+    .mascot-art .error-mark {
+      opacity: 0;
+      transition: opacity 240ms ease, transform 320ms cubic-bezier(.2, .75, .25, 1);
+    }
+
+    .mascot-art .action-prop,
+    .mascot-art .thinking-dots,
+    .mascot-art .success-mark,
+    .mascot-art .error-mark {
+      transform-box: fill-box;
+      transform-origin: center;
+      transform: translateY(6px) scale(.8);
+    }
+
+    .mascot-stage[data-state="listening"]::before {
+      animation: listen-pulse 1.8s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="listening"] .mascot-art {
+      transform: scale(1.025);
+    }
+
+    .mascot-stage[data-state="listening"] .eyes {
+      transform: translateY(-2px) scale(1.08);
+    }
+
+    .mascot-stage[data-state="thinking"][data-variant="think-scan"] .drift {
+      animation: think-drift 2.4s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"] .thinking-dots {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .mascot-stage[data-state="thinking"] .thinking-dots circle {
+      animation: thought 1.1s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"] .thinking-dots circle:nth-child(2) { animation-delay: 140ms; }
+    .mascot-stage[data-state="thinking"] .thinking-dots circle:nth-child(3) { animation-delay: 280ms; }
+
+    .mascot-stage[data-state="thinking"][data-variant="think-scan"] .eyes {
+      animation: gaze-scan 2.1s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"][data-variant="think-tilt"] .flow {
+      animation: think-flow 2.5s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"][data-variant="think-tilt"] .eyes {
+      animation: gaze-up 2.8s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"][data-variant="think-pulse"]::before {
+      animation: thought-halo 2.2s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"][data-variant="think-pulse"] .eyes {
+      animation: gaze-idle 8.5s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="thinking"] .mouth-smile { opacity: .45; }
+
+    .mascot-stage[data-state="acting"][data-variant="act-document"] .drift {
+      animation: act-drift 1.25s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="acting"][data-variant="act-folder"] .flow {
+      animation: act-flow 1.4s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="acting"][data-variant="act-search"] .eyes {
+      animation: gaze-scan 1.7s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="acting"] .action-prop {
+      opacity: 0;
+      transform: translateY(6px) scale(.8);
+    }
+
+    .mascot-stage[data-state="acting"][data-variant="act-document"] .prop-document,
+    .mascot-stage[data-state="acting"][data-variant="act-folder"] .prop-folder,
+    .mascot-stage[data-state="acting"][data-variant="act-search"] .prop-search {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      animation: prop-float 1.3s ease-in-out infinite;
+    }
+
+    .mascot-stage[data-state="speaking"] .mouth-smile { opacity: 0; }
+    .mascot-stage[data-state="speaking"] .mouth-open {
+      opacity: 1;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: talking 280ms ease-in-out infinite alternate;
+    }
+
+    .mascot-stage[data-state="success"] .mascot-art {
+      animation: success 750ms cubic-bezier(.2, .8, .2, 1) both;
+    }
+
+    .mascot-stage[data-state="success"] .success-mark {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      animation: mark-in 350ms ease-out both;
+    }
+
+    .mascot-stage[data-state="error"] .mascot-art {
+      animation: sad-dip 620ms cubic-bezier(.2, .75, .25, 1) both;
+      filter: drop-shadow(0 18px 22px #151e1c35) saturate(.72);
+    }
+
+    .mascot-stage[data-state="error"] .drift,
+    .mascot-stage[data-state="error"] .flow {
+      animation-play-state: paused;
+    }
+
+    .mascot-stage[data-state="error"] .eyes {
+      animation: none;
+      transform: translateY(2px) scale(.92);
+    }
+
+    .mascot-stage[data-state="error"] .eyebrow { opacity: 0; }
+    .mascot-stage[data-state="error"] .error-brows,
+    .mascot-stage[data-state="error"] .mouth-sad {
+      opacity: 1;
+    }
+
+    .mascot-stage[data-state="error"] .mouth-smile { opacity: 0; }
+
+    .mascot-stage[data-state="error"] .error-mark {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    @keyframes blink {
+      0% { transform: scaleY(1); }
+      45% { transform: scaleY(.08); }
+      100% { transform: scaleY(1); }
+    }
+
+    @keyframes gaze-idle {
+      0%, 35%, 100% { transform: translate(0, 0); }
+      42%, 49% { transform: translate(2px, -1px); }
+      56% { transform: translate(-1px, 0); }
+    }
+
+    @keyframes gaze-scan {
+      0%, 100% { transform: translate(-1px, -2px); }
+      35% { transform: translate(3px, -1px); }
+      68% { transform: translate(-2px, 0); }
+    }
+
+    @keyframes gaze-up {
+      0%, 100% { transform: translate(0, -1px); }
+      50% { transform: translate(1px, -4px); }
+    }
+
+    @keyframes thought-halo {
+      0%, 100% { box-shadow: 0 0 0 0 #d99a3b10; }
+      50% { box-shadow: 0 0 0 12px #d99a3b0a, 0 0 36px #d99a3b20; }
+    }
+
+    @keyframes mark-in {
+      from { opacity: 0; transform: translateY(4px) scale(.55); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes success {
+      0% { transform: translateY(0) scale(1); }
+      45% { transform: translateY(-12px) scale(1.035); }
+      75% { transform: translateY(2px) scale(.99); }
+      100% { transform: translateY(0) scale(1); }
+    }
+
+    @keyframes sad-dip {
+      0% { transform: translateY(0) rotate(0) scale(1); }
+      55% { transform: translateY(6px) rotate(2deg) scale(.985); }
+      100% { transform: translateY(4px) rotate(1deg) scale(.99); }
+    }
+
+    @keyframes idle-drift {
+      0%, 100% { transform: translateY(0) rotate(-.25deg); }
+      50% { transform: translateY(-2px) rotate(.25deg); }
+    }
+
+    @keyframes idle-flow {
+      0%, 100% { transform: translate(0, 0) rotate(0); }
+      50% { transform: translate(1px, -1px) rotate(.25deg); }
+    }
+
+    @keyframes think-drift {
+      0%, 100% { transform: translateY(0) rotate(-.8deg); }
+      50% { transform: translateY(-7px) rotate(.8deg); }
+    }
+
+    @keyframes think-flow {
+      0%, 100% { transform: translate(0, 0) rotate(-1deg); }
+      50% { transform: translate(5px, -3px) rotate(1.5deg); }
+    }
+
+    @keyframes act-drift {
+      0%, 100% { transform: translate(0, 0) rotate(-1deg); }
+      50% { transform: translate(4px, -4px) rotate(1.5deg); }
+    }
+
+    @keyframes act-flow {
+      0%, 100% { transform: translate(0, 0) rotate(-1deg); }
+      50% { transform: translate(7px, -5px) rotate(2deg); }
+    }
+
+    @keyframes thought {
+      0%, 100% { opacity: .45; transform: translateY(1px); }
+      50% { opacity: 1; transform: translateY(-3px); }
+    }
+
+    @keyframes prop-float {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-5px) rotate(2deg); }
+    }
+
+    @keyframes talking {
+      from { transform: scaleY(.35); }
+      to { transform: scaleY(1); }
+    }
+
+    @keyframes listen-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 #d99a3b20; }
+      50% { box-shadow: 0 0 0 14px #d99a3b08, 0 0 42px #d99a3b24; }
+    }
+
+    .state-caption {
+      align-self: flex-start;
+      margin: 0 0 7px;
+      color: var(--panel-muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .state-row {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .state-button {
+      padding: 6px 9px;
+      border: 1px solid var(--button-border);
+      border-radius: 999px;
+      color: var(--panel-text);
+      background: transparent;
+      font-size: 11px;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+
+    .state-button:hover,
+    .state-button[aria-pressed="true"] {
+      border-color: #bd823d99;
+      color: var(--ink);
+      background: #bd823d1c;
+    }
+
+    .state-status {
+      min-height: 20px;
+      align-self: flex-start;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chat-panel {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--paper);
+    }
+
+    .chat-header {
+      min-height: 61px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 25px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chat-header h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .connection-state {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .connection-state::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #c4934e;
+      content: "";
+    }
+
+    .messages {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 15px;
+      padding: 24px clamp(18px, 4vw, 42px);
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      max-width: min(82%, 550px);
+      padding: 12px 15px;
+      border: 1px solid var(--line);
+      border-radius: 15px 15px 15px 4px;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 14px;
+      line-height: 1.5;
+      animation: message-in 260ms ease-out both;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      border-color: #eee5d5;
+      border-radius: 15px 15px 4px 15px;
+      background: #f7f1e5;
+    }
+
+    .message.assistant { align-self: flex-start; }
+
+    .message-label {
+      display: block;
+      margin-bottom: 3px;
+      color: #818a85;
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: .055em;
+      text-transform: uppercase;
+    }
+
+    @keyframes message-in {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .approval-card {
+      align-self: flex-start;
+      width: min(82%, 550px);
+      padding: 15px;
+      border: 1px solid var(--card-border);
+      border-radius: 13px;
+      background: var(--card);
+      animation: message-in 260ms ease-out both;
+    }
+
+    .approval-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .risk {
+      display: inline-flex;
+      margin: 9px 0;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: #815d2b;
+      background: #f3e7ce;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .command {
+      overflow-wrap: anywhere;
+      padding: 9px 10px;
+      border-radius: 7px;
+      color: #3e4744;
+      background: var(--command-bg);
+      font: 12px/1.5 Consolas, "Cascadia Code", monospace;
+    }
+
+    .approval-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .button {
+      min-height: 34px;
+      padding: 7px 12px;
+      border: 1px solid var(--button-border);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--button);
+      font-size: 12px;
+      font-weight: 600;
+      transition: transform 120ms ease, background 150ms ease;
+    }
+
+    .button:hover { background: #f5f5ef; }
+    .button:active { transform: translateY(1px); }
+
+    .button.primary {
+      border-color: var(--ochre-dark);
+      color: #fff;
+      background: var(--ochre);
+    }
+
+    .button.primary:hover { background: var(--ochre-dark); }
+    .button:disabled { cursor: default; opacity: .55; }
+
+    .composer {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 15px 24px 21px;
+      border-top: 1px solid var(--line);
+    }
+
+    .composer input {
+      min-width: 0;
+      flex: 1;
+      height: 43px;
+      padding: 0 13px;
+      border: 1px solid #dcdfd8;
+      border-radius: 9px;
+      outline: none;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 13px;
+    }
+
+    .composer input:focus {
+      border-color: #ba9863;
+      box-shadow: 0 0 0 3px #bd823d1b;
+    }
+
+    .send-button {
+      min-width: 72px;
+      height: 43px;
+      border: 0;
+      border-radius: 9px;
+      color: #fff;
+      background: var(--ochre);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .send-button:hover { background: var(--ochre-dark); }
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid #377f91;
+      outline-offset: 2px;
+    }
+
+    .demo-note {
+      padding: 0 24px 13px;
+      color: var(--muted);
+      font-size: 10px;
+      text-align: center;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 10px; }
+      .window { height: calc(100vh - 20px); min-height: 540px; }
+      .body { grid-template-columns: 1fr; grid-template-rows: 220px minmax(0, 1fr); }
+      .mascot-panel {
+        display: grid;
+        grid-template-columns: 86px minmax(0, 1fr);
+        grid-template-rows: auto auto 1fr auto;
+        column-gap: 13px;
+        align-items: center;
+        padding: 13px 17px;
+      }
+      .mascot-panel h1, .mascot-panel .subhead, .state-caption, .state-row, .state-status {
+        grid-column: 2;
+      }
+      .mascot-panel h1 { align-self: end; }
+      .mascot-panel .subhead { align-self: start; }
+      .mascot-stage {
+        grid-column: 1;
+        grid-row: 1 / 5;
+        width: 88px;
+        margin: 0;
+      }
+      .state-caption { align-self: end; margin-top: 4px; }
+      .state-row { align-self: center; }
+      .state-status { align-self: start; margin-top: 2px; }
+      .state-button { padding: 5px 7px; font-size: 10px; }
+      .chat-header { min-height: 48px; padding: 0 16px; }
+      .messages { padding: 16px; }
+      .message, .approval-card { max-width: 94%; width: 94%; }
+      .composer { padding: 12px 13px 16px; }
+      .demo-note { padding: 0 12px 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+      .mascot-art.is-blinking .eye {
+        animation-duration: 140ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="window" data-theme="light" aria-label="Anteprima dell'assistente Windows">
+    <header class="titlebar">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <strong>Assistente Windows</strong>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">Tema scuro</button>
+      <span class="demo-tag">Demo interattiva</span>
+    </header>
+
+    <div class="body">
+      <aside class="mascot-panel">
+        <h1>Ci sono.</h1>
+        <p class="subhead">Un passo alla volta, insieme.</p>
+
+        <div class="mascot-stage" id="mascot-stage" data-state="idle">
+          <svg
+            class="mascot-art"
+            id="mascot"
+            data-state="idle"
+            viewBox="0 0 420 420"
+            role="img"
+            aria-labelledby="mascot-title mascot-description"
+          >
+            <title id="mascot-title">Mascotte organica</title>
+            <desc id="mascot-description">Una forma ambrata astratta che cambia movimento ed espressione con lo stato dell'assistente.</desc>
+            <defs>
+              <linearGradient id="demo-amber" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#f4cb70"/>
+                <stop offset=".55" stop-color="#d99a3b"/>
+                <stop offset="1" stop-color="#b9702f"/>
+              </linearGradient>
+              <linearGradient id="demo-ribbon" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#e7b553" stop-opacity=".18"/>
+                <stop offset=".55" stop-color="#f2c466" stop-opacity=".86"/>
+                <stop offset="1" stop-color="#d18436" stop-opacity=".2"/>
+              </linearGradient>
+              <radialGradient id="demo-light" cx="45%" cy="35%" r="70%">
+                <stop offset="0" stop-color="#fff0bd" stop-opacity=".52"/>
+                <stop offset="1" stop-color="#fff0bd" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <g class="drift">
+              <ellipse cx="211" cy="324" rx="74" ry="9" fill="#604b34" opacity=".12"/>
+              <g class="flow">
+                <path d="M142 263c8-32 1-67 15-93 13-25 34-41 58-43 25-2 43 12 43 32 0 19-17 33-37 34-18 1-32-7-43 4-13 13-10 37 5 51 18 18 47 17 70 3 21-13 36-36 54-66-8 39-27 75-58 96-33 23-76 25-97 5-11-10-15-22-10-36Z" fill="url(#demo-amber)"/>
+                <path d="M178 235c-21 1-44-13-57-33 7 28 24 48 48 55 18 6 36 1 50-8-13-7-23-15-41-14Z" fill="url(#demo-ribbon)"/>
+                <path d="M236 174c26-20 45-47 46-73 16 24 9 54-10 76-10 12-24 20-40 23 5-9 7-17 4-26Z" fill="url(#demo-ribbon)"/>
+                <path d="M165 179c10-21 28-35 47-39 18-4 34 1 42 13-19-8-38-4-52 8-11 9-17 22-18 36-10-1-17-7-19-18Z" fill="url(#demo-light)"/>
+              </g>
+              <g class="thinking-dots" fill="#8d632f">
+                <circle cx="293" cy="145" r="4"/>
+                <circle cx="308" cy="136" r="4"/>
+                <circle cx="323" cy="145" r="4"/>
+              </g>
+              <g class="action-prop prop-document" stroke="#9c6a32" stroke-width="2" stroke-linejoin="round">
+                <path d="M286 220h18l6 6h25v42h-49z" fill="#fffdf7"/>
+                <path d="M296 237h29M296 246h23M296 255h17" fill="none" stroke-linecap="round"/>
+                <path d="M286 220v-5h17l5 5" fill="#f3d9a1"/>
+              </g>
+              <g class="action-prop prop-folder" stroke="#9c6a32" stroke-width="2" stroke-linejoin="round">
+                <path d="M283 229h20l6 7h30v31h-56z" fill="#e6c27b"/>
+                <path d="M283 236h56l-7 31h-56z" fill="#f3d9a1"/>
+                <path d="M294 247h31" fill="none" stroke="#9c6a32" stroke-linecap="round"/>
+              </g>
+              <g class="action-prop prop-search" fill="none" stroke="#9c6a32" stroke-linecap="round" stroke-width="6">
+                <circle cx="306" cy="239" r="18" fill="#fffdf7" stroke-width="3"/>
+                <path d="m319 252 17 17" stroke-width="7"/>
+                <path d="M298 239h16m-8-8v16" stroke-width="2"/>
+              </g>
+              <g class="success-mark">
+                <circle cx="321" cy="163" r="18" fill="#5f886f"/>
+                <path d="m312 163 6 6 12-13" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+              </g>
+              <g class="error-mark">
+                <circle cx="321" cy="163" r="18" fill="#bd765c"/>
+                <path d="M321 153v12m0 6v.5" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="3"/>
+              </g>
+              <g class="eyes" fill="#332d26">
+                <ellipse class="eye" cx="190" cy="181" rx="4.2" ry="7"/>
+                <ellipse class="eye" cx="220" cy="178" rx="4" ry="6.6"/>
+              </g>
+              <path class="eyebrow" d="M184 168c4-3 8-4 12-3" fill="none" stroke="#75532f" stroke-linecap="round" stroke-width="2.4"/>
+              <g class="error-brows" fill="none" stroke="#75532f" stroke-linecap="round" stroke-width="2.8">
+                <path d="M182 169q7-8 15-2"/>
+                <path d="M214 167q8-6 15 2"/>
+              </g>
+              <path class="mouth-smile" d="M198 198c5 4 12 4 17-1" fill="none" stroke="#493a2a" stroke-linecap="round" stroke-width="2.6"/>
+              <path class="mouth-sad" d="M198 202c5-5 12-5 17 0" fill="none" stroke="#493a2a" stroke-linecap="round" stroke-width="2.8"/>
+              <ellipse class="mouth-open" cx="207" cy="196" rx="5" ry="5" fill="#493a2a"/>
+            </g>
+          </svg>
+        </div>
+
+        <p class="state-caption">Prova le animazioni</p>
+        <div class="state-row" role="group" aria-label="Stati dimostrativi della mascotte">
+          <button class="state-button" type="button" data-state="idle" aria-pressed="true">Attesa</button>
+          <button class="state-button" type="button" data-state="listening" aria-pressed="false">Ascolto</button>
+          <button class="state-button" type="button" data-state="thinking" aria-pressed="false">Pensa</button>
+          <button class="state-button" type="button" data-state="acting" aria-pressed="false">Agisce</button>
+          <button class="state-button" type="button" data-state="speaking" aria-pressed="false">Parla</button>
+          <button class="state-button" type="button" data-state="success" aria-pressed="false">Fatto</button>
+          <button class="state-button" type="button" data-state="error" aria-pressed="false">Errore</button>
+        </div>
+        <p class="state-status" id="state-status" aria-live="polite">In attesa</p>
+      </aside>
+
+      <section class="chat-panel" aria-label="Conversazione dimostrativa">
+        <header class="chat-header">
+          <h2>Conversazione</h2>
+          <span class="connection-state">Motore non collegato</span>
+        </header>
+
+        <div class="messages" id="messages" aria-live="polite">
+          <div class="message assistant">
+            <span class="message-label">Assistente</span>
+            Ciao. Cosa vuoi fare?
+          </div>
+          <div class="message user">
+            <span class="message-label">Tu</span>
+            Svuota il cestino
+          </div>
+          <div class="message assistant">
+            <span class="message-label">Assistente</span>
+            Prima controllo cosa contiene.
+          </div>
+          <div class="approval-card" id="approval-card">
+            <p class="approval-title">Prima di procedere, serve la tua conferma</p>
+            <span class="risk">Operazione da confermare</span>
+            <div class="command">Clear-RecycleBin -Force</div>
+            <div class="approval-actions">
+              <button class="button" id="reject-button" type="button">Rifiuta</button>
+              <button class="button primary" id="approve-button" type="button">Simula conferma</button>
+            </div>
+          </div>
+        </div>
+
+        <form class="composer" id="composer">
+          <input id="prompt" type="text" autocomplete="off" placeholder="Scrivi una richiesta…" aria-label="Scrivi una richiesta">
+          <button class="send-button" type="submit">Invia</button>
+        </form>
+        <p class="demo-note">Anteprima grafica: nessun comando viene eseguito sul computer.</p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const stage = document.querySelector("#mascot-stage");
+    const mascot = document.querySelector("#mascot");
+    const stateStatus = document.querySelector("#state-status");
+    const stateButtons = [...document.querySelectorAll(".state-button")];
+    const themeToggle = document.querySelector("#theme-toggle");
+    const appWindow = document.querySelector(".window");
+    const messages = document.querySelector("#messages");
+    const approvalCard = document.querySelector("#approval-card");
+    const approveButton = document.querySelector("#approve-button");
+    const rejectButton = document.querySelector("#reject-button");
+    const composer = document.querySelector("#composer");
+    const prompt = document.querySelector("#prompt");
+
+    const stateLabels = {
+      idle: "In attesa",
+      listening: "Ti ascolto",
+      thinking: "Sto pensando",
+      acting: "Sto lavorando",
+      speaking: "Sto parlando",
+      success: "Fatto",
+      error: "C'è stato un problema"
+    };
+
+    const stateVariants = {
+      thinking: ["think-scan", "think-tilt", "think-pulse"],
+      acting: ["act-document", "act-folder", "act-search"]
+    };
+    const previousVariants = {};
+
+    function chooseVariant(state) {
+      const options = stateVariants[state];
+      if (!options) return null;
+
+      const candidates = options.filter((variant) => variant !== previousVariants[state]);
+      const selected = candidates[Math.floor(Math.random() * candidates.length)];
+      previousVariants[state] = selected;
+      return selected;
+    }
+
+    function setState(state) {
+      stage.dataset.state = state;
+      mascot.dataset.state = state;
+      const variant = chooseVariant(state);
+      if (variant) {
+        stage.dataset.variant = variant;
+        mascot.dataset.variant = variant;
+      } else {
+        delete stage.dataset.variant;
+        delete mascot.dataset.variant;
+      }
+      stateStatus.textContent = stateLabels[state];
+      stateButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.state === state));
+      });
+    }
+
+    function scheduleBlink() {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const delay = reducedMotion
+        ? 8000 + Math.random() * 5000
+        : 3800 + Math.random() * 3300;
+
+      window.setTimeout(() => {
+        mascot.classList.add("is-blinking");
+        window.setTimeout(() => {
+          mascot.classList.remove("is-blinking");
+          scheduleBlink();
+        }, 160);
+      }, delay);
+    }
+
+    scheduleBlink();
+
+    themeToggle.addEventListener("click", () => {
+      const isDark = appWindow.dataset.theme !== "dark";
+      appWindow.dataset.theme = isDark ? "dark" : "light";
+      themeToggle.setAttribute("aria-pressed", String(isDark));
+      themeToggle.textContent = isDark ? "Tema chiaro" : "Tema scuro";
+    });
+
+    function addMessage(text, kind) {
+      const bubble = document.createElement("div");
+      bubble.className = `message ${kind}`;
+      const label = document.createElement("span");
+      label.className = "message-label";
+      label.textContent = kind === "user" ? "Tu" : "Assistente";
+      bubble.append(label, document.createTextNode(text));
+      messages.append(bubble);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    stateButtons.forEach((button) => {
+      button.addEventListener("click", () => setState(button.dataset.state));
+    });
+
+    approveButton.addEventListener("click", () => {
+      approveButton.disabled = true;
+      rejectButton.disabled = true;
+      setState("acting");
+      addMessage("Conferma simulata. Sto mostrando lo stato di lavoro, ma non eseguo PowerShell.", "assistant");
+      window.setTimeout(() => {
+        setState("success");
+        addMessage("Demo completata. Sul computer non è stata eseguita alcuna operazione.", "assistant");
+        approvalCard.hidden = true;
+      }, 1500);
+    });
+
+    rejectButton.addEventListener("click", () => {
+      approveButton.disabled = true;
+      rejectButton.disabled = true;
+      setState("idle");
+      addMessage("Va bene, non ho eseguito nulla.", "assistant");
+      approvalCard.hidden = true;
+    });
+
+    composer.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const request = prompt.value.trim();
+      if (!request) return;
+
+      addMessage(request, "user");
+      prompt.value = "";
+      setState("thinking");
+      window.setTimeout(() => {
+        addMessage("Questa è solo un'anteprima: qui risponderebbe il motore Python collegato.", "assistant");
+        setState("speaking");
+        window.setTimeout(() => setState("idle"), 1200);
+      }, 950);
+    });
+  </script>
+</body>
+</html>

@@ -28,6 +28,12 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Creare concept aggiornati senza cielo stellato e con una mascotte antropomorfa più astratta.
 - [x] Concordare uno stile d'animazione moderno e organico, senza estetica pixel/CRT anni '80.
 - [x] Creare un primo prototipo SVG animato, con movimento ridotto rispettato.
+- [x] Creare una finestra demo con chat e controlli per provare gli stati della mascotte.
+- [x] Impostare il tema chiaro come predefinito e aggiungere la selezione del tema scuro nella demo.
+- [x] Rendere più distinti pensiero, azione e parlato con indicatori, oggetto animato e bocca mobile.
+- [x] Aggiungere battiti di palpebre e piccoli movimenti degli occhi in tutti gli stati.
+- [x] Aggiungere tre varianti non ripetute consecutivamente per pensiero e azione.
+- [x] Dare alla mascotte un'espressione dispiaciuta e un movimento di assestamento nello stato di errore.
 - [ ] Scegliere il toolkit grafico e verificare una modalità minima di distribuzione per Windows.
 - [ ] Definire un confine tra motore e interfaccia, indipendente dalla UI, mantenendo la CLI esistente.
 - [ ] Realizzare la prima finestra grafica con conversazione, richieste in linguaggio naturale, avanzamento e approvazioni esplicite.
@@ -46,6 +52,7 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - Il concept più recente abbandona il cielo stellato e la sfera sopra la testa, usando una forma ambrata fluida e indefinita con pochi tratti antropomorfi su un pannello uniforme. È il riferimento visivo corrente, ma resta modificabile.
 - I mockup mostrano una chat e una conferma esplicita di un comando PowerShell. Non sono asset finali: la mascotte andrà ridisegnata o ricostruita in forma vettoriale prima di animarla.
 - È stato creato un prototipo autonomo SVG animato: [mascot-organic-demo.svg](./mascot-organic-demo.svg). Usa movimenti morbidi, un battito di ciglia discreto e rispetta l'impostazione di movimento ridotto del sistema; non è ancora integrato nella GUI.
+- È disponibile una finestra demo locale e interattiva: [mascot-chat-demo.html](./mascot-chat-demo.html). Usa tema chiaro per impostazione predefinita con selettore scuro. Gli occhi si muovono e sbattono le palpebre indipendentemente dallo stato; pensiero e azione scelgono tra tre varianti, evitando di ripetere subito quella precedente. L'azione mostra un documento, una cartella o una lente; il parlato anima la bocca. In caso di errore la mascotte assume un'espressione dispiaciuta e si assesta con un movimento delicato. Il flusso di approvazione è simulato: il motore non è collegato e non vengono eseguiti comandi.
 - Proposta tecnica corrente: React + TypeScript per la UI e bridge WebView2/pywebview verso Python; da validare con una prova pratica rispetto a PySide6/QML.
 - Questo documento registra la direzione concordata e la sequenza di lavoro; non avvia da solo la codifica.
 
@@ -85,7 +92,9 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 - Iniziare con un asset segnaposto sostituibile, così il lavoro sulla UI e sul motore non dipende dall'illustrazione definitiva.
 - Ricostruire la mascotte come SVG a livelli o percorsi vettoriali modificabili, non animare direttamente il mockup raster.
-- Definire poche espressioni o animazioni coerenti, associate agli stati elencati sopra. In React, preferire CSS/SVG per movimenti leggeri e stati semplici; valutare animazioni più articolate solo se realmente necessarie.
+- Riutilizzare una sola mascotte SVG con varianti di stato, invece di duplicare un SVG per ogni animazione. Associare a ogni stato transizioni CSS/SVG coerenti; riservare elementi o percorsi sovrapposti alle variazioni d'espressione e agli oggetti contestuali.
+- In React, pilotare lo stato con una proprietà o un attributo `data-state`; usare CSS/SVG per movimenti e transizioni. Valutare animazioni più articolate solo se realmente necessarie.
+- Nella demo, scegliere casualmente una variante di pensiero/azione senza ripetere immediatamente la precedente. Nell'app collegata al motore, preferire una scelta contestuale basata su eventi strutturati (per esempio ricerca, file o impostazioni) quando il backend fornirà il tipo di attività.
 - Mantenere i movimenti brevi, discreti e non bloccanti. Prevedere una modalità statica o a movimento ridotto; nessuna informazione essenziale deve dipendere solo dall'animazione.
 - Scegliere uno stile visivo divertente e accogliente per adulti e principianti, senza presumere che l'utente sia un bambino.
 - La mascotte deve essere un'interlocutrice, non un sostituto di messaggi leggibili, controlli o approvazioni dei comandi.
@@ -111,6 +120,6 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 ## Prossimi passi
 
-- [ ] Realizzare una prova pratica per toolkit grafico e distribuzione.
+- [ ] Valutare la demo e realizzare una prova pratica per toolkit grafico e distribuzione.
 - [ ] Dopo aver scelto il toolkit, implementare il confine motore/controller e la prima GUI.
 - [ ] Lasciare la revisione dei prompt e della personalità a una fase successiva, dopo aver validato il flusso d'interazione grafico.
