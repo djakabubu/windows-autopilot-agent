@@ -56,7 +56,44 @@ const suggestedPrompts = [
     title: "Trovare un'impostazione di Windows",
     prompt: "Guidami per trovare l'impostazione di Windows che controlla gli aggiornamenti, senza installare nulla.",
   },
+  {
+    title: "Controllare la versione di Windows",
+    prompt: "Controlla quale versione di Windows uso e spiegami dove riceve supporto e aggiornamenti, senza cambiare impostazioni.",
+  },
+  {
+    title: "Verificare la batteria",
+    prompt: "Se questo PC ha una batteria, controllane lo stato e spiegami il risultato senza cambiare nulla.",
+  },
+  {
+    title: "Controllare la connessione Wi-Fi",
+    prompt: "Controlla se il Wi-Fi è connesso e mostrami solo il nome della rete e lo stato, senza rivelare password o altri dettagli.",
+  },
+  {
+    title: "Vedere cosa parte all'avvio",
+    prompt: "Aiutami a vedere quali app sono configurate per partire con Windows. Non disattivare né modificare nulla.",
+  },
+  {
+    title: "Controllare gli aggiornamenti",
+    prompt: "Controlla se Windows segnala aggiornamenti in sospeso e spiegami dove verificarli. Non scaricare né installare nulla.",
+  },
+  {
+    title: "Verificare una stampante",
+    prompt: "Controlla quali stampanti risultano installate e qual è quella predefinita, senza stampare o cambiare impostazioni.",
+  },
+  {
+    title: "Fare ordine nei file",
+    prompt: "Suggeriscimi un modo sicuro per liberare spazio sul PC, prima controllando cosa occupa spazio e senza eliminare nulla.",
+  },
 ];
+
+function pickSuggestedPrompts() {
+  const shuffled = [...suggestedPrompts];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, 3);
+}
 
 function loadConversations(): SavedConversation[] {
   try {
@@ -113,6 +150,7 @@ function getWelcomeCopy(state: MascotState, hour = new Date().getHours()) {
 function App() {
   const initialSettings = useRef(loadSettings());
   const [messages, setMessages] = useState<Message[]>([greeting]);
+  const [visibleSuggestions] = useState(pickSuggestedPrompts);
   const [conversations, setConversations] = useState<SavedConversation[]>(loadConversations);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => crypto.randomUUID());
   const [readOnly, setReadOnly] = useState(false);
@@ -394,7 +432,7 @@ function App() {
               <h2>Non sai da dove iniziare?</h2>
               <p>Scegli un esempio: lo inserirò nella casella, senza inviarlo.</p>
               <div className="suggested-prompts">
-                {suggestedPrompts.map(({ title, prompt }) => (
+                {visibleSuggestions.map(({ title, prompt }) => (
                   <button
                     className="suggested-prompt"
                     type="button"
