@@ -18,7 +18,7 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - Non attivare la modalità autopilot per impostazione predefinita e non nasconderla dietro un'interfaccia giocosa.
 - Non riscrivere i prompt del modello/sistema durante l'implementazione iniziale della GUI. Migliorare semplicità e cordialità dei prompt sarà una fase successiva e verificabile separatamente.
 - La GUI iniziale non aggiunge lettura dello schermo, automazione di mouse/tastiera, interazione vocale o nuove capacità del sistema: espone tramite una nuova interfaccia le funzionalità già presenti.
-- Direzione scelta: React + TypeScript compilati localmente e ospitati in una finestra desktop WebView2 tramite pywebview, con Python come backend. Il bridge espone solo operazioni/eventi applicativi; non espone PowerShell direttamente al frontend. La distribuzione con installer resta da verificare.
+- Direzione aggiornata: React + TypeScript compilati localmente, serviti da un server Python loopback e mostrati in una finestra Microsoft Edge in modalità app. Il server espone solo operazioni/eventi applicativi; non espone PowerShell direttamente al frontend. Nessuna dipendenza WebView/Electron e nessun nuovo pacchetto Python. La distribuzione con installer resta da verificare.
 
 ## Attività
 
@@ -36,39 +36,44 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Aggiungere tre varianti non ripetute consecutivamente per pensiero e azione.
 - [x] Dare alla mascotte un'espressione dispiaciuta e un movimento di assestamento nello stato di errore.
 - [x] Valutare come avviare PowerShell senza una finestra di console visibile, mantenendo output e codici di uscita acquisibili.
-- [x] Scegliere React + TypeScript, Vite e pywebview come toolkit per la prima finestra desktop.
+- [x] Scegliere React + TypeScript/Vite e il server Python locale con finestra Edge app per la GUI desktop.
 - [x] Definire un flusso di eventi del motore indipendente dalla UI e mantenere la CLI come adattatore.
 - [x] Realizzare la prima finestra grafica con conversazione, richieste in linguaggio naturale, stato dell'attività e approvazioni esplicite.
 - [x] Collegare gli stati della mascotte agli eventi del motore.
-- [ ] Verificare l'avvio su Windows con WebView2 e decidere se/come distribuire un installer.
+- [x] Implementare launcher nascosto, server loopback, finestra Edge app e spegnimento guidato dalla presenza.
+- [ ] Verificare manualmente l'apertura/chiusura su Windows e decidere se/come distribuire un installer.
 - [ ] Verificare sicurezza, reattività, accessibilità, compatibilità Windows e documentazione.
 - [ ] In una fase successiva, rendere prompt e risposte più cordiali e semplici per chi è alle prime armi.
 
 ## Stato attuale
 
-- Repository: `djakabubu/windows-autopilot-agent`; branch: `UserInterfaceAnimated`; ultimo commit: `416c6c9` (`Prepare Windows Autopilot Agent for public release`).
+- Repository: `djakabubu/windows-autopilot-agent`; branch: `UserInterfaceAnimated`; ultimo commit: `c6f754b` (`prima versione, non mi piace webview, cerco di copiare lo stile di MyFinalTodo`).
 - Il repository aveva modifiche locali a `plan.md` prima dell'integrazione della GUI; le modifiche preesistenti sono state mantenute e aggiornate in questo piano. La GUI e il frontend sono attualmente modifiche locali non ancora committate.
 - L'applicazione attuale è una CLI Python per Windows. Il ciclo modello/attività, la valutazione del rischio dei comandi, le richieste di conferma e l'esecuzione di processi PowerShell sono implementati in `windows_autopilot.py`.
 - La CLI mantiene `print()` e `input()` tramite un adattatore; il ciclo condiviso ora produce eventi strutturati. Modello e PowerShell girano in un worker quando chiamati dalla GUI, senza bloccare la finestra.
-- Sono supportati Python 3.9 o superiore e Windows PowerShell 5.1 o PowerShell 7. Il motore/CLI resta basato sulla standard library; la GUI aggiunge la dipendenza opzionale pywebview. Il frontend usa Node.js 20.19+ oppure 22.12+.
-- È stata integrata una prima app desktop React + TypeScript in `ui/`, servita localmente da pywebview tramite `run_gui.pyw` e `desktop_backend.py`. Il bridge usa gli eventi strutturati del motore e le richieste di conferma; la CLI continua a usare lo stesso flusso motore. La build frontend e i test mirati passano; l'avvio nativo WebView2 non è stato verificato in questa sessione.
+- Sono supportati Python 3.9 o superiore e Windows PowerShell 5.1 o PowerShell 7. Il motore/CLI e il server GUI usano la standard library; Node.js 20.19+ oppure 22.12+ serve solo quando occorre compilare il frontend.
+- La UI React + TypeScript in `ui/` è servita dal server Python in `desktop_server.py`; `run_gui.cmd` avvia in modo nascosto il launcher, che verifica la build, controlla `/api/health`, avvia un server indipendente se necessario e apre Edge in modalità app con profilo dedicato. Il bridge Python conserva gli eventi strutturati e le approvazioni esplicite; la CLI continua a usare lo stesso motore.
+- Il server ascolta solo su `127.0.0.1:43127`, verifica Host/Origin per le richieste locali, serve gli asset compilati e mantiene una connessione SSE di presenza. Con il launcher attivo, termina dopo la chiusura dell'ultima finestra oppure se nessuna finestra si collega entro 30 secondi; in avvio diretto con `--server` non si spegne automaticamente.
+- I test Python e la build/type-check React passano. L'avvio visivo tramite Edge/launcher e il suo comportamento di chiusura non sono stati verificati manualmente in questa sessione.
 - La demo grafica autonoma resta disponibile come riferimento visivo; i concept visivi generati restano non definitivi: [primo](./openrouter-image-2026-11-25T10-07-39-623Z-db90b1c9-1.png), [secondo](./openrouter-image-2026-11-25T10-10-52-027Z-acb2ce0c-1.png), [variante ambrata](./openrouter-image-2026-11-25T10-16-24-348Z-510658e2-1.png) e [variante astratta più recente](./openrouter-image-2026-11-25T10-16-52-884Z-bd4cc666-1.png).
 - Il concept più recente abbandona il cielo stellato e la sfera sopra la testa, usando una forma ambrata fluida e indefinita con pochi tratti antropomorfi su un pannello uniforme. È il riferimento visivo corrente, ma resta modificabile.
 - I mockup mostrano una chat e una conferma esplicita di un comando PowerShell. Non sono asset finali; la GUI usa per ora il prototipo SVG esistente con transizioni di stato CSS essenziali.
 - È stato creato un prototipo SVG animato: [mascot-organic-demo.svg](./mascot-organic-demo.svg). La UI React lo riusa come asset e pilota le transizioni di stato; le animazioni dettagliate della demo non sono ancora state portate tutte nella UI integrata.
 - È disponibile una finestra demo locale e interattiva: [mascot-chat-demo.html](./mascot-chat-demo.html). Usa tema chiaro per impostazione predefinita con selettore scuro. Gli occhi si muovono e sbattono le palpebre indipendentemente dallo stato; pensiero e azione scelgono tra tre varianti, evitando di ripetere subito quella precedente. L'azione mostra un documento, una cartella o una lente; il parlato anima la bocca. In caso di errore la mascotte assume un'espressione dispiaciuta e si assesta con un movimento delicato. Il flusso di approvazione è simulato: il motore non è collegato e non vengono eseguiti comandi.
-- Architettura attuale: React + TypeScript/Vite, UI compilata e caricata da file locale in pywebview, bridge Python tipizzato a eventi applicativi e motore Windows esistente.
+- Architettura attuale: React + TypeScript/Vite, UI statica servita via HTTP solo su loopback, API Python a operazioni limitate e motore Windows esistente.
 - La funzione `execute_shell_command` in `windows_autopilot.py` avvia PowerShell con stdout/stderr catturati e timeout; nella GUI usa `subprocess.CREATE_NO_WINDOW`, mantenendo output e codice di uscita. `run_gui.pyw` avvia l'host senza console quando lanciato tramite l'associazione Windows per i file `.pyw`.
 - `CREATE_NO_WINDOW` nasconde la console di PowerShell, non eventuali finestre che un comando avvia autonomamente e non limita i privilegi del processo. Il comando e le richieste di conferma devono quindi restare visibili nella UI.
+- `run_gui.cmd` usa `launch_gui.vbs` per non lasciare una finestra di comando; il processo Python separato non ha console. Gli errori e le eccezioni non gestite sono scritti in `%LOCALAPPDATA%\WindowsAutopilotAgent\error.log`.
 - Questo documento registra la direzione concordata, il lavoro integrato finora e le verifiche ancora da fare.
 
 ## Piano di implementazione
 
 ### 1. Toolkit grafico e distribuzione
 
-- Scelta effettuata: React + TypeScript/Vite in pywebview; la build locale è caricata come file statico nella finestra nativa.
-- README documenta dipendenze opzionali, build e avvio. Il packaging/installer non è incluso nella preview.
-- Da completare: verificare su Windows con WebView2 Runtime e decidere la modalità di distribuzione.
+- Scelta iniziale pywebview sostituita su richiesta: React + TypeScript/Vite, server Python su loopback e finestra Edge `--app` con `--user-data-dir`.
+- Il launcher rigenera la UI se manca o è più vecchia dei sorgenti e installa i pacchetti npm solo quando mancano. Il server gestisce `/api/health`, API operative, SSE `/api/presence`, `/api/shutdown`, Host locale ed error log.
+- README documenta launcher, runtime, modalità sviluppo e log. Il packaging/installer non è incluso nella preview.
+- Da completare: verifica manuale su Windows (Edge, browser predefinito, reload, chiusura) e decisione sulla distribuzione.
 
 **Criterio di completamento:** toolkit scelto e UI compilabile; il criterio di avvio nativo/distribuzione resta aperto fino alla prova manuale su Windows.
 
@@ -84,8 +89,8 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 ### 3. Realizzare la prima conversazione grafica
 
-- Implementati nella UI React: finestra ridimensionabile, conversazione, nuovo chat, input, indicatore attività, risultati e scheda di approvazione con comando esatto/rischio/motivo.
-- Le richieste restano in attesa finché l'utente non approva o rifiuta; la chiusura del bridge rifiuta l'approvazione pendente.
+- Implementati nella UI React: finestra ridimensionabile, conversazione, nuovo chat, input, indicatore attività, risultati e scheda di approvazione con comando esatto/rischio/motivo. Le chiamate passano dall'API HTTP locale anziché dal bridge WebView.
+- Le richieste restano in attesa finché l'utente non approva o rifiuta; la chiusura del server rifiuta l'approvazione pendente.
 - L'autopilot non è esposto dalla GUI. Build TypeScript/Vite superata; restano verifiche manuali di accessibilità e dimensioni su Windows.
 
 **Criterio di completamento:** l'utente può inviare una richiesta, osservare l'attività, approvare o rifiutare un comando e leggere il risultato senza usare il terminale.
@@ -125,5 +130,5 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Collegare la UI desktop al motore Python e implementare il flusso end-to-end con eventi, risultati e conferme esplicite.
 - [x] Avviare PowerShell dalla GUI con `CREATE_NO_WINDOW`, mantenendo output, errori, timeout e codice di uscita.
 - [x] Mantenere la CLI e condividere il percorso strutturato del motore tra CLI e GUI.
-- [ ] Verificare manualmente la GUI su Windows/WebView2, incluse approvazione, rifiuto, ridimensionamento e movimento ridotto.
+- [ ] Verificare manualmente launcher nascosto, Edge `--app`, browser di fallback, reload, chiusura e spegnimento del server, oltre ad approvazione/rifiuto e ridimensionamento.
 - [ ] Decidere e documentare il packaging/installer; lasciare revisione dei prompt/persona a una fase successiva.

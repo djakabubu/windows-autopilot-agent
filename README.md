@@ -13,7 +13,7 @@ This project is an independent personal project and is not affiliated with Micro
 - Windows PowerShell 5.1 or PowerShell 7 (`pwsh`)
 - An OpenRouter API key
 
-The CLI uses only the Python standard library. The optional desktop UI requires Node.js 20.19 or newer (or 22.12 or newer), the WebView2 Runtime, and the extra Python dependency described below.
+The CLI and desktop server use only the Python standard library. Node.js 20.19 or newer (or 22.12 or newer) is needed only to build the optional desktop UI.
 
 ## Quick start (PowerShell)
 
@@ -67,15 +67,9 @@ Runtime history files are created beside the program and are intentionally ignor
 
 ## Optional desktop app (preview)
 
-The desktop app uses a React + TypeScript frontend hosted in a native Windows window by pywebview. The Python agent remains responsible for model requests, local risk assessment, explicit command approval, and PowerShell execution. The UI is bundled locally; it does not expose a network API or send commands directly to PowerShell.
+The desktop app uses a locally hosted React + TypeScript frontend in a Microsoft Edge app window. A hidden Python process serves the UI and a loopback-only API; the Python agent remains responsible for model requests, local risk assessment, explicit command approval, and PowerShell execution. No Electron, WebView host, or extra Python package is used.
 
-1. Install the optional Python desktop host:
-
-   ```powershell
-   python -m pip install -r requirements-gui.txt
-   ```
-
-2. Build the React UI:
+1. Build the React UI (Node.js 20.19+ or 22.12+):
 
    ```powershell
    Push-Location ui
@@ -84,20 +78,35 @@ The desktop app uses a React + TypeScript frontend hosted in a native Windows wi
    Pop-Location
    ```
 
-3. Configure `OPENROUTER_API_KEY` in the Windows user environment, then launch `run_gui.pyw`. You can also run `python .\run_gui.pyw` from a PowerShell session where the key is set; that launch method may leave the terminal window open.
+2. Configure `OPENROUTER_API_KEY` in the Windows user environment, then double-click `run_gui.cmd`. It launches a hidden local Python server and opens the UI in an Edge app window. The launcher installs frontend packages only if needed and builds the UI if its build output is missing.
 
-The desktop preview is Windows-only and requires WebView2. It starts with confirmation enabled; there is no GUI autopilot mode. The UI asks before every locally classified non-safe command and displays its exact PowerShell text, risk level, and rationale. This preview has no installer yet: Python, the optional pywebview dependency, Node.js for building, and the WebView2 Runtime must be installed separately. The CLI remains independently usable without these GUI dependencies.
+The desktop app is Windows-only and requires Python 3.9+ and Node.js only when the UI needs to be built. Microsoft Edge is used when installed; otherwise the default browser opens. The server listens only on `127.0.0.1:43127`, requires a local `Host`, and shuts down a few seconds after the last app window closes. For development, run `python .\run_gui.pyw --server` to keep the server alive, then open `http://127.0.0.1:43127/`. The app starts with confirmation enabled; there is no GUI autopilot mode. The UI asks before every locally classified non-safe command and displays its exact PowerShell text, risk level, and rationale. This preview has no installer yet. The CLI remains independently usable without the desktop dependencies.
+
+Server errors are recorded in `%LOCALAPPDATA%\WindowsAutopilotAgent\error.log`.
 
 ## Development
 
 Validate the Python engine and run the focused task-event tests with:
 
 ```powershell
-python -m py_compile windows_autopilot.py desktop_backend.py run_gui.pyw
+python -m py_compile windows_autopilot.py desktop_backend.py desktop_server.py run_gui.pyw
 python -m unittest discover -s tests
 ```
 
-Build and type-check the desktop frontend from `ui` with `npm ci` and `npm run build`.
+To develop the UI with Vite, run the Python API server and the React dev server in separate PowerShell terminals:
+
+```powershell
+# Terminal 1: API server (stays running until you stop it)
+python .\run_gui.pyw --server
+
+# Terminal 2
+Push-Location ui
+npm ci
+npm run dev
+Pop-Location
+```
+
+Vite proxies `/api` requests to the local Python server. For a production-style frontend build, run `npm ci` and `npm run build` from `ui`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and [RELEASE_NOTES.md](RELEASE_NOTES.md) for release notes.
 

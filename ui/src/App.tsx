@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import mascot from "../../mascot-organic-demo.svg";
+import { desktopApi } from "./api";
 
 type MascotState = "idle" | "thinking" | "acting" | "approval" | "success" | "error";
 type Message =
@@ -66,12 +67,11 @@ function App() {
     let active = true;
     let inFlight = false;
     const poll = async () => {
-      const api = window.pywebview?.api;
-      if (!api || inFlight) return;
+      if (inFlight) return;
       inFlight = true;
       try {
         if (!connected) {
-          const status = await api.get_status();
+          const status = await desktopApi.get_status();
           if (!active) return;
           setConnected(true);
           setConfigured(status.configured);
@@ -81,7 +81,7 @@ function App() {
             status.configured ? "Motore collegato" : "Configura la chiave API",
           );
         }
-        const events = await api.poll_events();
+        const events = await desktopApi.poll_events();
         if (!active) return;
         events.forEach((event) => {
           if (event.type === "status") {
@@ -137,12 +137,17 @@ function App() {
     };
 
     const timer = window.setInterval(() => void poll(), 250);
-    window.addEventListener("pywebviewready", poll);
+    const presence = new EventSource("/api/presence");
+    const notifyShutdown = () => {
+      navigator.sendBeacon("/api/shutdown");
+    };
+    window.addEventListener("pagehide", notifyShutdown);
     void poll();
     return () => {
       active = false;
       window.clearInterval(timer);
-      window.removeEventListener("pywebviewready", poll);
+      presence.close();
+      window.removeEventListener("pagehide", notifyShutdown);
     };
   }, [connected]);
 
@@ -156,16 +161,11 @@ function App() {
     event.preventDefault();
     const prompt = draft.trim();
     if (!prompt || busy) return;
-    const api = window.pywebview?.api;
-    if (!api) {
-      addMessage({ kind: "error", text: "L'interfaccia non è collegata al backend desktop." });
-      return;
-    }
     addMessage({ kind: "user", text: prompt });
     setDraft("");
     setBusy(true);
     setMascotState("thinking");
-    const result = await api.start_task(prompt);
+    const result = await desktopApi.start_task(prompt);
     if (!result.ok) {
       addMessage({ kind: "error", text: result.error ?? "Impossibile avviare la richiesta." });
       setBusy(false);
@@ -174,8 +174,8 @@ function App() {
   };
 
   const decide = async (approval: Approval, approved: boolean) => {
-    const result = await window.pywebview?.api.respond_to_approval(approval.id, approved);
-    if (!result?.ok) {
+    const result = await desktopApi.respond_to_approval(approval.id, approved);
+    if (!result.ok) {
       addMessage({
         kind: "error",
         text: result?.error ?? "Non è stato possibile inviare la decisione.",
@@ -192,8 +192,8 @@ function App() {
 
   const resetConversation = async () => {
     if (busy) return;
-    const result = await window.pywebview?.api.new_conversation();
-    if (!result?.ok) {
+    const result = await desktopApi.new_conversation();
+    if (!result.ok) {
       addMessage({ kind: "error", text: result?.error ?? "Impossibile iniziare una nuova chat." });
       return;
     }

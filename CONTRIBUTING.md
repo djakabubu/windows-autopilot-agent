@@ -10,8 +10,8 @@ Please include a concise description, reproducible steps, expected and actual be
 
 1. Fork the repository and create a focused branch.
 2. Keep changes compatible with Windows 10/11 and Windows PowerShell 5.1 or PowerShell 7 unless the change explicitly documents otherwise.
-3. Keep the CLI on the Python standard library; optional desktop dependencies belong in `requirements-gui.txt`.
-4. Run `python -m py_compile windows_autopilot.py desktop_backend.py run_gui.pyw`, `python -m unittest discover -s tests`, and (for UI changes) `npm ci` and `npm run build` from `ui`.
+3. Keep the CLI and desktop server on the Python standard library; Node.js is used only to build the frontend.
+4. Run `python -m py_compile windows_autopilot.py desktop_backend.py desktop_server.py run_gui.pyw`, `python -m unittest discover -s tests`, and (for UI changes) `npm ci` and `npm run build` from `ui`.
 5. Describe the change, tests, and any behavior changes in the pull request.
 
 Risk classification changes should remain conservative: when uncertain, ask for confirmation. Do not commit local history, credentials, or generated runtime state.
