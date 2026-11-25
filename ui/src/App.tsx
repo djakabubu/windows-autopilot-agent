@@ -1,8 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import mascot from "../../mascot-organic-demo.svg";
+import Mascot from "./Mascot";
+import type { MascotState } from "./mascotState";
 import { desktopApi } from "./api";
-
-type MascotState = "idle" | "thinking" | "acting" | "approval" | "success" | "error";
 type Message =
   | { id: number; kind: "user" | "assistant" | "error" | "notice"; text: string }
   | {
@@ -36,6 +35,7 @@ interface Approval {
 const stateLabels: Record<MascotState, string> = {
   idle: "Ci sono. Cosa vuoi fare?",
   thinking: "Sto controllando la tua richiesta…",
+  speaking: "Ti sto spiegando cosa fare…",
   acting: "Sto lavorando sul computer…",
   approval: "Prima di procedere, decidi tu.",
   success: "Fatto. Vuoi fare altro?",
@@ -51,6 +51,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [configured, setConfigured] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
   const [model, setModel] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mascotState, setMascotState] = useState<MascotState>("idle");
@@ -70,17 +71,18 @@ function App() {
       if (inFlight) return;
       inFlight = true;
       try {
-        if (!connected) {
-          const status = await desktopApi.get_status();
-          if (!active) return;
+        const status = await desktopApi.get_status();
+        if (!active) return;
+        if (!connected || !status.configured) {
           setConnected(true);
           setConfigured(status.configured);
-          setBusy(status.busy);
           setModel(status.model);
           setConnectionMessage(
             status.configured ? "Motore collegato" : "Configura la chiave API",
           );
         }
+        setBusy(status.busy);
+        setConnectionError("");
         const events = await desktopApi.poll_events();
         if (!active) return;
         events.forEach((event) => {
@@ -95,7 +97,7 @@ function App() {
             }
           } else if (event.type === "message" && event.text) {
             addMessage({ kind: "assistant", text: event.text });
-            setMascotState("success");
+            setMascotState("speaking");
           } else if (event.type === "approval") {
             const approval: Approval = {
               id: event.id ?? "",
@@ -129,6 +131,8 @@ function App() {
       } catch (error) {
         if (active) {
           setConnectionMessage(`Errore di comunicazione: ${String(error)}`);
+          setConnectionError(String(error));
+          setConnected(false);
           setMascotState("error");
         }
       } finally {
@@ -227,9 +231,11 @@ function App() {
           <h1>Ci sono.</h1>
           <p className="subhead">Un passo alla volta, insieme.</p>
           <div className="mascot-stage" data-state={mascotState}>
-            <img className="mascot-art" src={mascot} alt="Mascotte organica ambrata" />
+            <Mascot state={mascotState} />
           </div>
-          <p className="state-caption" aria-live="polite">{stateLabels[mascotState]}</p>
+          <p className="state-caption" aria-live="polite">
+            {connectionError ? "Non riesco a raggiungere il motore." : stateLabels[mascotState]}
+          </p>
           <p className="model-label">{model ? `Modello · ${model}` : "Assistente locale"}</p>
         </aside>
 

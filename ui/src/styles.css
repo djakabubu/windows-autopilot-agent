@@ -135,12 +135,33 @@ button:disabled { cursor: not-allowed; opacity: .58; }
   transition: box-shadow 550ms ease, background 550ms ease;
 }
 
-.mascot-art { display: block; width: 100%; filter: drop-shadow(0 18px 22px #151e1c35); transition: transform 500ms ease; }
-.mascot-stage[data-state="thinking"] .mascot-art { transform: rotate(-2deg) translateY(-5px); }
-.mascot-stage[data-state="acting"] .mascot-art { transform: rotate(2deg) translateY(-7px); }
-.mascot-stage[data-state="approval"]::before { background: #d99a3b16; box-shadow: 0 0 0 14px #d99a3b08, 0 0 50px #d99a3b16; }
-.mascot-stage[data-state="success"] .mascot-art { transform: translateY(-4px) scale(1.02); }
-.mascot-stage[data-state="error"] .mascot-art { transform: rotate(-3deg) translateY(3px); filter: grayscale(.25) drop-shadow(0 12px 18px #151e1c25); }
+.mascot-art { display: block; width: 100%; overflow: visible; filter: drop-shadow(0 18px 22px #151e1c35); }
+.mascot-drift, .mascot-flow, .mascot-eyes, .mascot-mouth, .mascot-brows { transform-box: fill-box; transform-origin: center; }
+.mascot-drift { animation: mascot-float 4.8s ease-in-out infinite; }
+.mascot-flow { animation: mascot-flow 6.4s ease-in-out infinite; }
+.mascot-eyes { animation: mascot-blink 5.2s ease-in-out infinite; }
+.mascot-talking-mouth { animation: mascot-talk 380ms ease-in-out infinite alternate; }
+.mascot-stage[data-state="thinking"] .mascot-drift { animation-duration: 2.2s; }
+.mascot-stage[data-state="thinking"] .mascot-flow { animation-duration: 3.2s; }
+.mascot-stage[data-state="thinking"] .mascot-eyes { transform: translateY(-2px); }
+.mascot-stage[data-state="acting"] .mascot-drift { animation-duration: 1.8s; }
+.mascot-stage[data-state="acting"] .mascot-flow { animation-duration: 2.6s; }
+.mascot-stage[data-state="acting"] .mascot-eyes { transform: translateY(1px) scaleY(.92); }
+.mascot-stage[data-state="speaking"] .mascot-mouth { transform-origin: 207px 199px; }
+.mascot-stage[data-state="approval"]::before { background: #d99a3b16; box-shadow: 0 0 0 14px #d99a3b08, 0 0 50px #d99a3b16; animation: approval-glow 2.4s ease-in-out infinite; }
+.mascot-stage[data-state="success"] .mascot-drift { animation: mascot-celebrate 750ms ease-out 1, mascot-float 4.8s ease-in-out 750ms infinite; }
+.mascot-stage[data-state="success"] .mascot-eyes { animation-name: mascot-happy-blink; }
+.mascot-stage[data-state="error"] .mascot-drift { animation: mascot-settle 520ms ease-out 1, mascot-float 4.8s ease-in-out 520ms infinite; }
+.mascot-stage[data-state="error"] .mascot-eyes { transform: translateY(2px) scaleY(.94); }
+.mascot-stage[data-state="error"] .mascot-art { filter: grayscale(.25) drop-shadow(0 12px 18px #151e1c25); }
+@keyframes mascot-float { 0%, 100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(-7px) rotate(.7deg); } }
+@keyframes mascot-flow { 0%, 100% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(3px, -4px) rotate(1deg); } }
+@keyframes mascot-blink { 0%, 91%, 95%, 100% { transform: scaleY(1); } 93% { transform: scaleY(.08); } }
+@keyframes mascot-happy-blink { 0%, 75%, 100% { transform: scaleY(1); } 86% { transform: scaleY(.12); } }
+@keyframes mascot-talk { from { transform: scaleY(.65); } to { transform: scaleY(1.5); } }
+@keyframes approval-glow { 0%, 100% { box-shadow: 0 0 0 10px #d99a3b06, 0 0 36px #d99a3b12; } 50% { box-shadow: 0 0 0 15px #d99a3b10, 0 0 52px #d99a3b1c; } }
+@keyframes mascot-celebrate { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-12px) scale(1.035); } 100% { transform: translateY(-4px) scale(1.02); } }
+@keyframes mascot-settle { 0% { transform: rotate(0); } 35% { transform: rotate(-5deg) translateY(4px); } 70% { transform: rotate(2deg) translateY(1px); } 100% { transform: rotate(-3deg) translateY(3px); } }
 .state-caption { min-height: 36px; margin: 10px 0 4px; text-align: center; font-size: 14px; font-weight: 600; }
 .model-label { margin: 4px 0 0; color: var(--muted); font-size: 10px; text-align: center; overflow-wrap: anywhere; }
 

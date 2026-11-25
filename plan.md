@@ -40,6 +40,8 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Definire un flusso di eventi del motore indipendente dalla UI e mantenere la CLI come adattatore.
 - [x] Realizzare la prima finestra grafica con conversazione, richieste in linguaggio naturale, stato dell'attività e approvazioni esplicite.
 - [x] Collegare gli stati della mascotte agli eventi del motore.
+- [x] Integrare nella mascotte React le animazioni SVG (movimento, sguardo, parlato, attesa, successo ed errore) e le espressioni per stato.
+- [x] Mantenere animazioni rispettose di `prefers-reduced-motion`.
 - [x] Implementare launcher nascosto, server loopback, finestra Edge app e spegnimento guidato dalla presenza.
 - [ ] Verificare manualmente l'apertura/chiusura su Windows e decidere se/come distribuire un installer.
 - [ ] Verificare sicurezza, reattività, accessibilità, compatibilità Windows e documentazione.
@@ -54,7 +56,8 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - Sono supportati Python 3.9 o superiore e Windows PowerShell 5.1 o PowerShell 7. Il motore/CLI e il server GUI usano la standard library; Node.js 20.19+ oppure 22.12+ serve solo quando occorre compilare il frontend.
 - La UI React + TypeScript in `ui/` è servita dal server Python in `desktop_server.py`; `run_gui.cmd` avvia in modo nascosto il launcher, che verifica la build, controlla `/api/health`, avvia un server indipendente se necessario e apre Edge in modalità app con profilo dedicato. Il bridge Python conserva gli eventi strutturati e le approvazioni esplicite; la CLI continua a usare lo stesso motore.
 - Il server ascolta solo su `127.0.0.1:43127`, verifica Host/Origin per le richieste locali, serve gli asset compilati e mantiene una connessione SSE di presenza. Con il launcher attivo, termina dopo la chiusura dell'ultima finestra oppure se nessuna finestra si collega entro 30 secondi; in avvio diretto con `--server` non si spegne automaticamente.
-- La UI riempie ora l'intero viewport della finestra/browser: rimossi margini, dimensioni massime e cornice arrotondata che davano l'effetto finestra annidata. Build/type-check React superata; resta da verificare manualmente su Windows l'avvio e la chiusura tramite Edge/launcher.
+- La UI riempie ora l'intero viewport della finestra/browser: rimossi margini, dimensioni massime e cornice arrotondata che davano l'effetto finestra annidata. Build/type-check React superata. Verificata la risposta HTTP dell'entry Vite in sviluppo e, con i processi attivi, health/status del server Python e proxy Vite verso `/api/status`; la UI mostra motore collegato e modello configurato. La UI web richiede l'avvio da `ui/` (`npm run dev`), mentre dalla root non c'è un `package.json`. Non è stata inviata una richiesta all'agente, quindi il flusso completo di lavoro/approvazione non è stato esercitato in questa verifica.
+- La mascotte è ora resa come SVG React inline: il CSS anima movimento e flusso, occhi, bocca parlante, alone di approvazione, salto di successo e assestamento d'errore; occhi/sopracciglia/bocca cambiano per stato. `prefers-reduced-motion` riduce le animazioni. Le espressioni sono collegate agli eventi reali del motore, non soltanto alla demo.
 - La demo grafica autonoma resta disponibile come riferimento visivo; i concept visivi generati restano non definitivi: [primo](./openrouter-image-2026-11-25T10-07-39-623Z-db90b1c9-1.png), [secondo](./openrouter-image-2026-11-25T10-10-52-027Z-acb2ce0c-1.png), [variante ambrata](./openrouter-image-2026-11-25T10-16-24-348Z-510658e2-1.png) e [variante astratta più recente](./openrouter-image-2026-11-25T10-16-52-884Z-bd4cc666-1.png).
 - Il concept più recente abbandona il cielo stellato e la sfera sopra la testa, usando una forma ambrata fluida e indefinita con pochi tratti antropomorfi su un pannello uniforme. È il riferimento visivo corrente, ma resta modificabile.
 - I mockup mostrano una chat e una conferma esplicita di un comando PowerShell. Non sono asset finali; la GUI usa per ora il prototipo SVG esistente con transizioni di stato CSS essenziali.
@@ -97,11 +100,11 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 ### 4. Aggiungere mascotte e animazioni
 
-- L'asset SVG esistente è usato come mascotte provvisoria.
-- Ricostruire la mascotte come SVG a livelli o percorsi vettoriali modificabili, non animare direttamente il mockup raster.
+- Mascotte ricostruita come SVG React inline a livelli e percorsi vettoriali modificabili, non come mockup raster.
 - Riutilizzare una sola mascotte SVG con varianti di stato, invece di duplicare un SVG per ogni animazione. Associare a ogni stato transizioni CSS/SVG coerenti; riservare elementi o percorsi sovrapposti alle variazioni d'espressione e agli oggetti contestuali.
-- In React lo stato viene pilotato tramite `data-state` e CSS; per ora le transizioni sono essenziali e non includono tutte le varianti animate della demo.
-- Nella demo, scegliere casualmente una variante di pensiero/azione senza ripetere immediatamente la precedente. Nell'app collegata al motore, preferire una scelta contestuale basata su eventi strutturati (per esempio ricerca, file o impostazioni) quando il backend fornirà il tipo di attività.
+- In React lo stato viene pilotato tramite `data-state`; un componente SVG React inline rende espressioni e parti animate accessibili ai selettori CSS. Pensiero/azione accelerano il movimento, il parlato anima la bocca, approvazione pulsa, successo fa un piccolo salto e l'errore si assesta con espressione dispiaciuta; idle mantiene il movimento organico e il battito di ciglia.
+- La UI usa gli eventi strutturati del backend per alternare gli stati thinking, speaking, approval, acting, success, idle ed error; il recupero della connessione aggiorna nuovamente lo stato di collegamento.
+- La demo conserva le sue varianti indipendenti; il componente integrato dà priorità alla rappresentazione dell'evento reale e non dipende dalla demo.
 - Mantenere i movimenti brevi, discreti e non bloccanti. `prefers-reduced-motion` è rispettato e nessuna informazione essenziale dipende solo dall'animazione.
 - Scegliere uno stile visivo divertente e accogliente per adulti e principianti, senza presumere che l'utente sia un bambino.
 - La mascotte deve essere un'interlocutrice, non un sostituto di messaggi leggibili, controlli o approvazioni dei comandi.
@@ -130,5 +133,5 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Collegare la UI desktop al motore Python e implementare il flusso end-to-end con eventi, risultati e conferme esplicite.
 - [x] Avviare PowerShell dalla GUI con `CREATE_NO_WINDOW`, mantenendo output, errori, timeout e codice di uscita.
 - [x] Mantenere la CLI e condividere il percorso strutturato del motore tra CLI e GUI.
-- [ ] Verificare manualmente launcher nascosto, Edge `--app`, browser di fallback, reload, chiusura e spegnimento del server, oltre ad approvazione/rifiuto e ridimensionamento.
+- [ ] Verificare manualmente launcher nascosto, Edge `--app`, browser di fallback, reload, chiusura e spegnimento del server, oltre ad approvazione/rifiuto, ridimensionamento e animazioni/espressioni sugli eventi veri.
 - [ ] Decidere e documentare il packaging/installer; lasciare revisione dei prompt/persona a una fase successiva.
