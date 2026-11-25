@@ -43,6 +43,20 @@ interface SavedConversation {
 const HISTORY_KEY = "winzi.conversations.v1";
 const SETTINGS_KEY = "winzi.settings.v1";
 const greeting: Message = { id: 1, kind: "assistant", text: "Ciao, sono Winzi! Cosa vuoi fare?" };
+const suggestedPrompts = [
+  {
+    title: "Controllare lo spazio libero",
+    prompt: "Quanto spazio libero c'è sul disco C:? Controlla e spiegami il risultato, senza modificare file.",
+  },
+  {
+    title: "Capire un messaggio di errore",
+    prompt: "Aiutami a capire questo messaggio di errore: [incolla qui il testo]",
+  },
+  {
+    title: "Trovare un'impostazione di Windows",
+    prompt: "Guidami per trovare l'impostazione di Windows che controlla gli aggiornamenti, senza installare nulla.",
+  },
+];
 
 function loadConversations(): SavedConversation[] {
   try {
@@ -77,6 +91,25 @@ const stateLabels: Record<MascotState, string> = {
   error: "C'è stato un problema.",
 };
 
+function getWelcomeCopy(state: MascotState, hour = new Date().getHours()) {
+  if (state !== "idle") {
+    const statusCopy: Record<Exclude<MascotState, "idle">, { title: string; subtitle: string }> = {
+      thinking: { title: "Ci sto pensando.", subtitle: "Controllo la richiesta con calma." },
+      speaking: { title: "Ecco cosa ho trovato.", subtitle: "Ti spiego tutto, un passo alla volta." },
+      acting: { title: "Me ne occupo.", subtitle: "Sto eseguendo ciò che hai richiesto." },
+      approval: { title: "Mi fermo qui.", subtitle: "Prima di procedere, aspetto la tua conferma." },
+      success: { title: "Fatto!", subtitle: "Se vuoi, possiamo fare altro." },
+      error: { title: "Qualcosa non è andato.", subtitle: "Vediamo insieme come risolvere." },
+    };
+    return statusCopy[state];
+  }
+
+  if (hour >= 5 && hour < 12) return { title: "Buongiorno!", subtitle: "Ci sono, un passo alla volta." };
+  if (hour >= 12 && hour < 18) return { title: "Buon pomeriggio!", subtitle: "Ci sono, un passo alla volta." };
+  if (hour >= 18 && hour < 23) return { title: "Buonasera!", subtitle: "Ci sono, un passo alla volta." };
+  return { title: "Buonanotte!", subtitle: "Se hai bisogno, sono qui." };
+}
+
 function App() {
   const initialSettings = useRef(loadSettings());
   const [messages, setMessages] = useState<Message[]>([greeting]);
@@ -95,6 +128,7 @@ function App() {
   const [model, setModel] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">(initialSettings.current.theme);
   const [mascotState, setMascotState] = useState<MascotState>("idle");
+  const [welcomeCopy, setWelcomeCopy] = useState(() => getWelcomeCopy("idle"));
   const [mascotVariant, setMascotVariant] = useState<MascotVariant | null>(null);
   const previousVariants = useRef<Partial<Record<"thinking" | "acting", MascotVariant>>>({});
   const [connectionMessage, setConnectionMessage] = useState("Connessione al motore…");
@@ -108,6 +142,7 @@ function App() {
 
   const setStateWithVariant = (state: MascotState) => {
     setMascotState(state);
+    setWelcomeCopy(getWelcomeCopy(state));
     const options: Partial<Record<"thinking" | "acting", MascotVariant[]>> = {
       thinking: ["think-scan", "think-tilt", "think-pulse"],
       acting: ["act-document", "act-folder", "act-search"],
@@ -352,8 +387,31 @@ function App() {
               <span aria-hidden="true">⚙</span><span>Impostazioni</span>
             </button>
           </nav>
-          <h1>Ci sono.</h1>
-          <p className="subhead">Un passo alla volta, insieme.</p>
+          <h1 aria-live="polite">{welcomeCopy.title}</h1>
+          <p className="subhead">{welcomeCopy.subtitle}</p>
+          {messages.length === 1 && messages[0]?.id === greeting.id && (
+            <section className="quick-start" aria-label="Idee per iniziare">
+              <h2>Non sai da dove iniziare?</h2>
+              <p>Scegli un esempio: lo inserirò nella casella, senza inviarlo.</p>
+              <div className="suggested-prompts">
+                {suggestedPrompts.map(({ title, prompt }) => (
+                  <button
+                    className="suggested-prompt"
+                    type="button"
+                    key={title}
+                    disabled={!connected || !configured || !settingsReady}
+                    onClick={() => {
+                      setDraft(prompt);
+                      document.getElementById("prompt")?.focus();
+                    }}
+                  >
+                    <span aria-hidden="true">›</span>{title}
+                  </button>
+                ))}
+              </div>
+              <p className="quick-start-note">Winzi non controlla né modifica il PC da sola. Prima di inviare, puoi adattare la richiesta; i comandi proposti restano visibili e soggetti alle impostazioni di conferma.</p>
+            </section>
+          )}
           <div className="mascot-stage" data-state={mascotState} data-variant={mascotVariant ?? undefined}>
             <Mascot state={mascotState} variant={mascotVariant} />
           </div>

@@ -104,7 +104,7 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 .primary-button { border-color: var(--ochre); color: #fff; background: var(--ochre); }
 .primary-button:hover:not(:disabled) { background: var(--ochre-dark); border-color: var(--ochre-dark); }
 
-.app-body { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(250px, 32%) 1fr; }
+.app-body { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(240px, 28%) 1fr; }
 .mascot-panel {
   min-height: 0;
   display: flex;
@@ -121,6 +121,14 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 .nav-button span:first-child { color: var(--ochre-dark); font-size: 15px; }
 .mascot-panel h1 { align-self: flex-start; margin: 0 0 4px; font-size: 16px; font-weight: 600; }
 .subhead { align-self: flex-start; margin: 0; color: var(--muted); font-size: 12px; }
+.quick-start { width: 100%; margin-top: 26px; }
+.quick-start h2 { margin: 0 0 6px; font-size: 14px; font-weight: 650; }
+.quick-start > p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.suggested-prompts { display: grid; gap: 7px; margin-top: 11px; }
+.suggested-prompt { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid var(--button-border); border-radius: 8px; color: var(--ink); background: var(--button); text-align: left; font-size: 11px; }
+.suggested-prompt:hover:not(:disabled) { border-color: var(--ochre); background: var(--paper); }
+.suggested-prompt span { color: var(--ochre-dark); font-size: 17px; line-height: 12px; }
+.quick-start .quick-start-note { margin-top: 10px; font-size: 10px; }
 .mascot-stage {
   position: relative;
   width: min(100%, 300px);
@@ -295,6 +303,7 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 
 @media (max-width: 760px) {
   .app-body { grid-template-columns: 1fr; grid-template-rows: 145px 1fr; }
+  .quick-start { display: none; }
   .mascot-panel { display: grid; grid-template-columns: 82px 1fr; grid-template-rows: 30px 24px 22px 1fr; column-gap: 12px; padding: 8px 16px; }
   .mascot-nav { grid-column: 1 / 3; grid-row: 1; justify-content: flex-end; margin: 0; }
   .nav-button { flex: 0 0 auto; min-height: 28px; padding: 4px 8px; font-size: 10px; }

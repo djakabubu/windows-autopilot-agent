@@ -138,6 +138,8 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 ## Next Steps
 
+- [x] Rendere dinamico il saluto in base all'ora e aggiungere suggerimenti iniziali modificabili, che vengono inseriti nel campo senza invio automatico; build UI superata.
+- [x] Ridurre la colonna della mascotte al 28% dell'area disponibile e limitare la mascotte a 250 px; build UI superata.
 - [x] Collegare la UI desktop al motore Python e implementare il flusso end-to-end con eventi, risultati e conferme esplicite.
 - [x] Avviare PowerShell dalla GUI con `CREATE_NO_WINDOW`, mantenendo output, errori, timeout e codice di uscita.
 - [x] Mantenere la CLI e condividere il percorso strutturato del motore tra CLI e GUI.
