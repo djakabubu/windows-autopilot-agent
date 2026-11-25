@@ -22,6 +22,7 @@ interface DesktopStatus {
   configured: boolean;
   busy: boolean;
   model: string;
+  approval_levels: string[];
 }
 
 async function request<T>(path: string, body?: object): Promise<T> {
@@ -52,4 +53,5 @@ export const desktopApi = {
   respond_to_approval: (approvalId: string, approved: boolean) =>
     operation("/api/approval", { approvalId, approved }),
   new_conversation: () => operation("/api/conversation", {}),
+  set_approval_levels: (levels: string[]) => operation("/api/settings/approvals", { levels }),
 };

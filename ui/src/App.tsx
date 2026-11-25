@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Mascot from "./Mascot";
+import MarkdownMessage from "./MarkdownMessage";
 import type { MascotState, MascotVariant } from "./mascotState";
 import { desktopApi } from "./api";
 type Message =
@@ -32,6 +33,40 @@ interface Approval {
   reasons: string[];
 }
 
+interface SavedConversation {
+  id: string;
+  title: string;
+  updatedAt: number;
+  messages: Message[];
+}
+
+const HISTORY_KEY = "winzi.conversations.v1";
+const SETTINGS_KEY = "winzi.settings.v1";
+const greeting: Message = { id: 1, kind: "assistant", text: "Ciao, sono Winzi! Cosa vuoi fare?" };
+
+function loadConversations(): SavedConversation[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((item) => item && Array.isArray(item.messages)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadSettings(): { theme: "light" | "dark"; approvalLevels: string[] } {
+  try {
+    const value = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
+    return {
+      theme: value.theme === "dark" ? "dark" : "light",
+      approvalLevels: Array.isArray(value.approvalLevels)
+        ? value.approvalLevels.filter((level: string) => ["SAFE", "CAUTION", "DANGEROUS"].includes(level))
+        : ["SAFE", "CAUTION", "DANGEROUS"],
+    };
+  } catch {
+    return { theme: "light", approvalLevels: ["SAFE", "CAUTION", "DANGEROUS"] };
+  }
+}
+
 const stateLabels: Record<MascotState, string> = {
   idle: "Ci sono. Cosa vuoi fare?",
   thinking: "Sto controllando la tua richiesta…",
@@ -43,9 +78,14 @@ const stateLabels: Record<MascotState, string> = {
 };
 
 function App() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, kind: "assistant", text: "Ciao. Cosa vuoi fare?" },
-  ]);
+  const initialSettings = useRef(loadSettings());
+  const [messages, setMessages] = useState<Message[]>([greeting]);
+  const [conversations, setConversations] = useState<SavedConversation[]>(loadConversations);
+  const [activeConversationId, setActiveConversationId] = useState<string>(() => crypto.randomUUID());
+  const [readOnly, setReadOnly] = useState(false);
+  const [openPanel, setOpenPanel] = useState<"history" | "settings" | null>(null);
+  const [approvalLevels, setApprovalLevels] = useState<string[]>(initialSettings.current.approvalLevels);
+  const [settingsReady, setSettingsReady] = useState(false);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -53,7 +93,7 @@ function App() {
   const [configured, setConfigured] = useState(false);
   const [connectionError, setConnectionError] = useState("");
   const [model, setModel] = useState("");
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">(initialSettings.current.theme);
   const [mascotState, setMascotState] = useState<MascotState>("idle");
   const [mascotVariant, setMascotVariant] = useState<MascotVariant | null>(null);
   const previousVariants = useRef<Partial<Record<"thinking" | "acting", MascotVariant>>>({});
@@ -84,6 +124,19 @@ function App() {
     previousVariants.current[variantState] = selected;
     setMascotVariant(selected);
   };
+
+  useEffect(() => {
+    let active = true;
+    void desktopApi.set_approval_levels(initialSettings.current.approvalLevels).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setConnectionMessage(result.error ?? "Impossibile applicare le impostazioni di conferma.");
+        return;
+      }
+      setSettingsReady(true);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -177,15 +230,62 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme, approvalLevels }));
+  }, [theme, approvalLevels]);
+
+  useEffect(() => {
+    if (messages.length <= 1 && messages[0]?.id === greeting.id) return;
+    const firstUserMessage = messages.find((message) => message.kind === "user");
+    const title = firstUserMessage?.kind === "user"
+      ? firstUserMessage.text.slice(0, 72)
+      : "Nuova conversazione";
+    const conversation: SavedConversation = {
+      id: activeConversationId,
+      title,
+      updatedAt: Date.now(),
+      messages,
+    };
+    setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)].slice(0, 100));
+  }, [messages, activeConversationId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
+    } catch {
+      setConnectionMessage("Spazio locale esaurito: elimina alcune chat dalla cronologia.");
+    }
+  }, [conversations]);
+
+  useEffect(() => {
     if (messagesRef.current) {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
   }, [messages, approvals]);
 
+  const selectConversation = (conversation: SavedConversation) => {
+    setMessages(conversation.messages);
+    setActiveConversationId(conversation.id);
+    setReadOnly(true);
+    setOpenPanel(null);
+    setApprovals([]);
+  };
+
+  const updateApprovalLevel = async (level: string, checked: boolean) => {
+    const next = checked
+      ? [...new Set([...approvalLevels, level])]
+      : approvalLevels.filter((item) => item !== level);
+    const result = await desktopApi.set_approval_levels(next);
+    if (!result.ok) {
+      addMessage({ kind: "error", text: result.error ?? "Impossibile aggiornare le conferme." });
+      return;
+    }
+    setApprovalLevels(next);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const prompt = draft.trim();
-    if (!prompt || busy) return;
+    if (!prompt || busy || readOnly) return;
     addMessage({ kind: "user", text: prompt });
     setDraft("");
     setBusy(true);
@@ -223,32 +323,35 @@ function App() {
       return;
     }
     nextId.current = 2;
-    setMessages([{ id: 1, kind: "assistant", text: "Ciao. Cosa vuoi fare?" }]);
+    setMessages([greeting]);
+    setActiveConversationId(crypto.randomUUID());
+    setReadOnly(false);
     setApprovals([]);
+    setOpenPanel(null);
     setStateWithVariant("idle");
   };
 
   return (
     <main className="window" data-theme={theme}>
       <header className="titlebar">
-        <span className="brand-mark" aria-hidden="true" />
-        <strong>Assistente Windows</strong>
+        <img className="brand-mark" src="/winzi.svg" alt="" />
+        <strong>Winzi</strong>
         <span className={`connection ${configured ? "online" : "offline"}`} role="status">
           <span className="connection-dot" />
           {connected ? connectionMessage : "Connessione al motore…"}
         </span>
-        <button
-          className="quiet-button theme-toggle"
-          type="button"
-          onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
-          aria-label={`Attiva tema ${theme === "light" ? "scuro" : "chiaro"}`}
-        >
-          {theme === "light" ? "Tema scuro" : "Tema chiaro"}
-        </button>
       </header>
 
       <div className="app-body">
         <aside className="mascot-panel">
+          <nav className="mascot-nav" aria-label="Navigazione Winzi">
+            <button className="nav-button" type="button" onClick={() => setOpenPanel("history")} aria-label="Apri cronologia">
+              <span aria-hidden="true">◷</span><span>Cronologia</span>
+            </button>
+            <button className="nav-button" type="button" onClick={() => setOpenPanel("settings")} aria-label="Apri impostazioni">
+              <span aria-hidden="true">⚙</span><span>Impostazioni</span>
+            </button>
+          </nav>
           <h1>Ci sono.</h1>
           <p className="subhead">Un passo alla volta, insieme.</p>
           <div className="mascot-stage" data-state={mascotState} data-variant={mascotVariant ?? undefined}>
@@ -260,11 +363,11 @@ function App() {
           <p className="model-label">{model ? `Modello · ${model}` : "Assistente locale"}</p>
         </aside>
 
-        <section className="chat-panel" aria-label="Conversazione con l'assistente">
+        <section className="chat-panel" aria-label="Conversazione con Winzi">
           <header className="chat-header">
             <div>
-              <h2>Conversazione</h2>
-              <p>Le operazioni sensibili chiedono sempre la tua conferma.</p>
+              <h2>Chat con Winzi</h2>
+              <p>{approvalLevels.length === 3 ? "Winzi chiede conferma per ogni livello di rischio." : "I livelli di rischio non selezionati vengono approvati automaticamente."}</p>
             </div>
             <button className="quiet-button" type="button" onClick={resetConversation} disabled={busy}>
               Nuova chat
@@ -299,9 +402,9 @@ function App() {
                 ) : (
                   <>
                     <span className="message-label">
-                      {message.kind === "user" ? "Tu" : message.kind === "assistant" ? "Assistente" : "Nota"}
+                      {message.kind === "user" ? "Tu" : message.kind === "assistant" ? "Winzi" : "Nota"}
                     </span>
-                    <p>{message.text}</p>
+                    <MarkdownMessage text={message.text} />
                   </>
                 )}
               </article>
@@ -343,6 +446,7 @@ function App() {
             )}
           </div>
 
+          {readOnly && <p className="readonly-notice">Stai consultando una chat archiviata. Avvia una nuova chat per continuare.</p>}
           <form className="composer" onSubmit={(event) => void submit(event)}>
             <label className="sr-only" htmlFor="prompt">Scrivi una richiesta</label>
             <input
@@ -351,17 +455,80 @@ function App() {
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Scrivi una richiesta…"
               autoComplete="off"
-              disabled={busy || !connected || !configured}
+              disabled={busy || readOnly || !settingsReady || !connected || !configured}
             />
-            <button className="primary-button send-button" type="submit" disabled={busy || !draft.trim() || !configured}>
+            <button className="primary-button send-button" type="submit" disabled={busy || readOnly || !settingsReady || !draft.trim() || !configured}>
               Invia
             </button>
           </form>
           <footer className="chat-footer">
-            Verifica sempre i comandi proposti. La classificazione del rischio non è una sandbox.
+            Verifica sempre i comandi proposti: la classificazione del rischio non è una sandbox.
+            {approvalLevels.length < 3 && " I livelli non selezionati possono eseguire comandi senza conferma."}
           </footer>
         </section>
       </div>
+
+      {openPanel && (
+        <div className="panel-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setOpenPanel(null);
+        }}>
+          <section className="utility-panel" role="dialog" aria-modal="true" aria-labelledby="utility-title">
+            <header className="utility-header">
+              <div>
+                <p>Winzi</p>
+                <h2 id="utility-title">{openPanel === "history" ? "Cronologia" : "Impostazioni"}</h2>
+              </div>
+              <button className="quiet-button" type="button" onClick={() => setOpenPanel(null)} aria-label="Chiudi">×</button>
+            </header>
+            {openPanel === "history" ? (
+              <div className="history-list">
+                <p className="panel-hint">Le conversazioni restano salvate su questo dispositivo.</p>
+                {conversations.length === 0 ? <p className="empty-history">Le tue chat appariranno qui.</p> : conversations.map((conversation) => (
+                  <button className="history-item" type="button" key={conversation.id} onClick={() => selectConversation(conversation)}>
+                    <strong>{conversation.title}</strong>
+                    <span>{new Date(conversation.updatedAt).toLocaleString("it-IT")}</span>
+                  </button>
+                ))}
+                {conversations.length > 0 && <button className="clear-history" type="button" onClick={() => {
+                  if (window.confirm("Eliminare tutta la cronologia salvata su questo dispositivo?")) {
+                    setConversations([]);
+                    setMessages([greeting]);
+                    setActiveConversationId(crypto.randomUUID());
+                    setReadOnly(false);
+                  }
+                }}>Elimina cronologia</button>}
+              </div>
+            ) : (
+              <div className="settings-content">
+                <section className="settings-group">
+                  <h3>Aspetto</h3>
+                  <button className="quiet-button" type="button" onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>
+                    {theme === "light" ? "Passa al tema scuro" : "Passa al tema chiaro"}
+                  </button>
+                </section>
+                <section className="settings-group">
+                  <h3>Motore</h3>
+                  <p>Stato: {connected ? (configured ? "Collegato" : "Chiave API non configurata") : "Non collegato"}</p>
+                  <p>Modello: {model || "Non disponibile"}</p>
+                  <p>La chiave API si configura nelle variabili d'ambiente di Windows e non viene letta né mostrata qui.</p>
+                </section>
+                <section className="settings-group approval-settings">
+                  <h3>Richiedi approvazione per</h3>
+                  {(["SAFE", "CAUTION", "DANGEROUS"] as const).map((level) => (
+                    <label className="approval-option" key={level}>
+                      <input type="checkbox" checked={approvalLevels.includes(level)} onChange={(event) => void updateApprovalLevel(level, event.target.checked)}                       disabled={busy || !settingsReady} />
+                      <span><strong>{level === "SAFE" ? "Sicuro" : level === "CAUTION" ? "Attenzione" : "Pericoloso"}</strong><small>{level}</small></span>
+                    </label>
+                  ))}
+                  {approvalLevels.length > 0 && !approvalLevels.includes("DANGEROUS") && <p className="danger-notice" role="alert">I comandi classificati come pericolosi verranno eseguiti senza chiedere conferma.</p>}
+                  {approvalLevels.length === 0 && <p className="danger-notice" role="alert">Nessuna conferma: Winzi eseguirà automaticamente tutti i comandi.</p>}
+                  {approvalLevels.length > 0 && approvalLevels.length < 3 && approvalLevels.includes("DANGEROUS") && <p className="warning-notice">I livelli non selezionati verranno eseguiti senza chiedere conferma.</p>}
+                </section>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }

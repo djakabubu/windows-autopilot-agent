@@ -166,6 +166,8 @@ class DesktopRequestHandler(BaseHTTPRequestHandler):
                 )
             elif route == "/api/conversation":
                 result = self.server.bridge.new_conversation()
+            elif route == "/api/settings/approvals":
+                result = self.server.bridge.set_approval_levels(payload.get("levels"))
             else:
                 self._send_json(404, {"ok": False, "error": "Endpoint non trovato."})
                 return

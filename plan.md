@@ -1,6 +1,6 @@
 # Assistente grafico con mascotte - Piano di implementazione
 
-## Obiettivo
+## Objective
 
 Aggiungere a Windows Autopilot Agent un'interfaccia grafica giocosa e accogliente, in cui anche chi è alle prime armi con Windows possa chiedere aiuto in linguaggio naturale e capire cosa sta facendo l'assistente. La mascotte è l'interlocutore dell'utente; il motore esistente in Python, il modello, PowerShell e i controlli locali sul rischio restano responsabili dell'esecuzione delle attività.
 
@@ -15,12 +15,12 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - Mostrare avanzamento ed errori nella finestra o nella conversazione. Le animazioni non devono mai coprire comandi, risultati, approvazioni o controlli.
 - Conservare la classificazione locale del rischio e il flusso di approvazione esplicita. Prima di eseguire un comando che richiede approvazione, mostrare il comando PowerShell esatto, il livello e il motivo del rischio, e scelte chiare per eseguirlo o rifiutarlo.
 - Nella versione grafica, avviare PowerShell senza una finestra di console visibile, continuando a catturare output, errori, timeout e risultato da mostrare nella chat. Nascondere la console non deve nascondere il comando né sostituire la conferma dell'utente.
-- Non attivare la modalità autopilot per impostazione predefinita e non nasconderla dietro un'interfaccia giocosa.
+- Per la GUI, richiedere per impostazione predefinita l'approvazione per tutti e tre i livelli di rischio; rendere configurabili i livelli che devono chiedere conferma e avvisare esplicitamente quando un livello, incluso DANGEROUS, viene auto-approvato. La CLI mantiene il proprio comando autopilot.
 - Non riscrivere i prompt del modello/sistema durante l'implementazione iniziale della GUI. Migliorare semplicità e cordialità dei prompt sarà una fase successiva e verificabile separatamente.
 - La GUI iniziale non aggiunge lettura dello schermo, automazione di mouse/tastiera, interazione vocale o nuove capacità del sistema: espone tramite una nuova interfaccia le funzionalità già presenti.
 - Direzione aggiornata: React + TypeScript compilati localmente, serviti da un server Python loopback e mostrati in una finestra Microsoft Edge in modalità app. Il server espone solo operazioni/eventi applicativi; non espone PowerShell direttamente al frontend. Nessuna dipendenza WebView/Electron e nessun nuovo pacchetto Python. La distribuzione con installer resta da verificare.
 
-## Attività
+## Tasks
 
 - [x] Esaminare la CLI esistente, l'esecuzione PowerShell, il ciclo del modello e il flusso di conferma dei comandi.
 - [x] Definire il pubblico della prima versione, il ruolo della mascotte, lo stile d'interazione e i limiti di ambito.
@@ -43,15 +43,18 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - [x] Integrare nella mascotte React le animazioni SVG (movimento, sguardo, parlato, attesa, successo ed errore) e le espressioni per stato.
 - [x] Mantenere animazioni rispettose di `prefers-reduced-motion`.
 - [x] Implementare launcher nascosto, server loopback, finestra Edge app e spegnimento guidato dalla presenza.
+- [x] Rebrand UI in Winzi, applicare rendering Markdown sicuro a richieste e risposte, e creare favicon SVG della mascotte ottimizzata per il ritaglio.
+- [x] Aggiungere cronologia conversazioni persistente nel profilo browser, consultazione delle chat passate e pannelli Cronologia/Impostazioni nello spazio sopra la mascotte.
+- [x] Aggiungere impostazioni per chiedere approvazione per SAFE, CAUTION e DANGEROUS; default tutti abilitati, disabilitati auto-approvati con avviso esplicito.
 - [ ] Verificare manualmente l'apertura/chiusura su Windows e decidere se/come distribuire un installer.
 - [x] Ridurre i controlli API periodici dell'interfaccia a ogni 2 secondi.
 - [x] Registrare localmente conversazioni, comandi PowerShell, approvazioni, output/esiti e errori server in JSONL con oscuramento dei segreti e rotazione; nessuno script PowerShell di replay.
 - [ ] Verificare sicurezza, reattività, accessibilità, compatibilità Windows e documentazione.
 - [ ] In una fase successiva, rendere prompt e risposte più cordiali e semplici per chi è alle prime armi.
 
-## Stato attuale
+## Current Status
 
-- Repository: `djakabubu/windows-autopilot-agent`; branch: `UserInterfaceAnimated`; ultimo commit presente all'inizio di questo intervento: `3e67b35` (`mi sembra meglio`). Modifiche correnti non committate.
+- Repository: `djakabubu/windows-autopilot-agent`; branch: `UserInterfaceAnimated`; ultimo commit presente all'inizio di questo intervento: `b0aeab9` (`mi piace`). Modifiche correnti non committate.
 - Il repository aveva modifiche locali a `plan.md` prima dell'integrazione della GUI; le modifiche preesistenti sono state mantenute e aggiornate in questo piano. La GUI e il frontend sono attualmente modifiche locali non ancora committate.
 - L'applicazione attuale è una CLI Python per Windows. Il ciclo modello/attività, la valutazione del rischio dei comandi, le richieste di conferma e l'esecuzione di processi PowerShell sono implementati in `windows_autopilot.py`.
 - La CLI mantiene `print()` e `input()` tramite un adattatore; il ciclo condiviso ora produce eventi strutturati. Modello e PowerShell girano in un worker quando chiamati dalla GUI, senza bloccare la finestra.
@@ -70,6 +73,8 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - La funzione `execute_shell_command` in `windows_autopilot.py` avvia PowerShell con stdout/stderr catturati e timeout; nella GUI usa `subprocess.CREATE_NO_WINDOW`, mantenendo output e codice di uscita. `run_gui.pyw` avvia l'host senza console quando lanciato tramite l'associazione Windows per i file `.pyw`.
 - `CREATE_NO_WINDOW` nasconde la console di PowerShell, non eventuali finestre che un comando avvia autonomamente e non limita i privilegi del processo. Il comando e le richieste di conferma devono quindi restare visibili nella UI.
 - `run_gui.cmd` usa `launch_gui.vbs` per non lasciare una finestra di comando; il processo Python separato non ha console. Gli errori e le eccezioni non gestite sono scritti in `%LOCALAPPDATA%\WindowsAutopilotAgent\error.log`.
+- Per la richiesta marketing/UI: il titolo del frontend ora è Winzi; chat dell'utente/mascotte renderizzate con GitHub-flavored Markdown tramite ReactMarkdown senza HTML grezzo; favicon SVG della mascotte con viewBox ritagliato al disegno; le scorciatoie Cronologia/Impostazioni occupano l'area superiore della colonna mascotte. Cronologia e preferenze sono salvate nel localStorage del profilo browser. Le conferme sono configurabili per SAFE/CAUTION/DANGEROUS, tutte attive per default; i livelli deselezionati sono auto-approvati con avvisi nella UI. README aggiornato.
+- Validazione di questa modifica: build TypeScript/Vite superata; suite Python completa: 13 test passati; diagnostica dei file modificati senza errori. Non è stata eseguita la verifica visiva/manuale della finestra Edge.
 - Questo documento registra la direzione concordata, il lavoro integrato finora e le verifiche ancora da fare.
 
 ## Piano di implementazione
@@ -97,7 +102,7 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 - Implementati nella UI React: finestra ridimensionabile, conversazione, nuovo chat, input, indicatore attività, risultati e scheda di approvazione con comando esatto/rischio/motivo. Le chiamate passano dall'API HTTP locale anziché dal bridge WebView.
 - Le richieste restano in attesa finché l'utente non approva o rifiuta; la chiusura del server rifiuta l'approvazione pendente.
-- L'autopilot non è esposto dalla GUI. Build TypeScript/Vite superata; restano verifiche manuali di accessibilità e dimensioni su Windows.
+- Le impostazioni GUI permettono di selezionare i livelli SAFE/CAUTION/DANGEROUS che richiedono approvazione (tutti attivi per default); quelli deselezionati sono auto-approvati. La UI mostra avvisi per le scelte meno sicure.
 
 **Criterio di completamento:** l'utente può inviare una richiesta, osservare l'attività, approvare o rifiutare un comando e leggere il risultato senza usare il terminale.
 
@@ -131,10 +136,13 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 - Dare priorità a precisione dei comandi, trasparenza e approvazioni esplicite rispetto alla personalità o all'umorismo.
 - Considerare un design specifico per bambini solo come decisione di prodotto e sicurezza distinta; non presumere che la prima versione per adulti sia adatta all'uso non supervisionato da parte di bambini.
 
-## Prossimi passi
+## Next Steps
 
 - [x] Collegare la UI desktop al motore Python e implementare il flusso end-to-end con eventi, risultati e conferme esplicite.
 - [x] Avviare PowerShell dalla GUI con `CREATE_NO_WINDOW`, mantenendo output, errori, timeout e codice di uscita.
 - [x] Mantenere la CLI e condividere il percorso strutturato del motore tra CLI e GUI.
+- [x] Rinnovare il branding UI in Winzi, applicare Markdown sicuro ai messaggi e usare un favicon SVG della mascotte ritagliato.
+- [x] Aggiungere cronologia locale persistente consultabile e pannello Impostazioni per motore, tema e conferme selezionabili per livello.
+- [x] Applicare le preferenze di approvazione nel motore GUI: livelli selezionati richiedono conferma, livelli deselezionati sono auto-approvati; predefiniti tutti selezionati.
 - [ ] Verificare manualmente launcher nascosto, Edge `--app`, browser di fallback, reload, chiusura e spegnimento del server, oltre ad approvazione/rifiuto, ridimensionamento e animazioni/espressioni sugli eventi veri.
 - [ ] Decidere e documentare il packaging/installer; lasciare revisione dei prompt/persona a una fase successiva.

@@ -69,6 +69,22 @@ class DesktopHTTPServerTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 400)
 
+    def test_approval_settings_are_forwarded_to_the_bridge(self):
+        self.bridge.set_approval_levels.return_value = {"ok": True}
+        body = json.dumps({"levels": ["DANGEROUS"]}).encode("utf-8")
+        request = Request(
+            f"{self.url}/api/settings/approvals",
+            data=body,
+            headers={"Content-Type": "application/json", "Origin": self.url},
+            method="POST",
+        )
+
+        with urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(payload, {"ok": True})
+        self.bridge.set_approval_levels.assert_called_once_with(["DANGEROUS"])
+
     def test_task_request_is_forwarded_to_the_approval_gated_bridge(self):
         body = json.dumps({"prompt": "Check disk space"}).encode("utf-8")
         request = Request(

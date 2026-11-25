@@ -1315,6 +1315,7 @@ def iter_task_events(
     stream: bool = True,
     show_progress: bool = True,
     hidden_window: bool = False,
+    approval_levels: Optional[set[str]] = None,
 ) -> Generator[dict[str, Any], Optional[str], list[dict[str, str]]]:
     """Run a task and yield presentation-independent events.
 
@@ -1409,11 +1410,16 @@ def iter_task_events(
             "reasons": assessment.reasons,
         }
 
-        # In autopilot mode confirmation is never requested: run everything.
+        # Explicit approval levels are used by the desktop UI. Levels left out
+        # of that set are auto-approved; the CLI keeps its existing behavior.
         needs_approval = (
             not autopilot
-            and assessment.level != "SAFE"
-            and not (assessment.level == "CAUTION" and allow_caution)
+            and (
+                assessment.level in approval_levels
+                if approval_levels is not None
+                else assessment.level != "SAFE"
+                and not (assessment.level == "CAUTION" and allow_caution)
+            )
         )
         if needs_approval:
             decision = yield {

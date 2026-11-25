@@ -23,6 +23,7 @@ class DesktopBridge:
         self._pending_approval: Optional[dict[str, Any]] = None
         self._messages = [{"role": "system", "content": engine.build_system_prompt()}]
         self._model = engine.DEFAULT_MODEL
+        self._approval_levels = {"SAFE", "CAUTION", "DANGEROUS"}
 
     def get_status(self) -> dict[str, Any]:
         with self._lock:
@@ -30,7 +31,20 @@ class DesktopBridge:
                 "configured": bool(engine.OPENROUTER_API_KEY),
                 "busy": self._busy,
                 "model": self._model,
+                "approval_levels": sorted(self._approval_levels),
             }
+
+    def set_approval_levels(self, levels: Any) -> dict[str, Any]:
+        allowed = {"SAFE", "CAUTION", "DANGEROUS"}
+        if not isinstance(levels, list) or any(
+            not isinstance(level, str) or level not in allowed for level in levels
+        ):
+            return {"ok": False, "error": "Selezione dei livelli di conferma non valida."}
+        with self._lock:
+            if self._busy:
+                return {"ok": False, "error": "Non puoi cambiare le conferme durante un'attività."}
+            self._approval_levels = set(levels)
+        return {"ok": True}
 
     def poll_events(self) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
@@ -57,10 +71,11 @@ class DesktopBridge:
             if self._busy:
                 return {"ok": False, "error": "È già in corso una richiesta."}
             self._busy = True
+            approval_levels = set(self._approval_levels)
             self._log_activity("user_request", text=request)
             worker = threading.Thread(
                 target=self._run_task,
-                args=(request,),
+                args=(request, approval_levels),
                 name="windows-agent-task",
                 daemon=True,
             )
@@ -111,7 +126,7 @@ class DesktopBridge:
     def _emit(self, event: dict[str, Any]) -> None:
         self._events.put(event)
 
-    def _run_task(self, prompt: str) -> None:
+    def _run_task(self, prompt: str, approval_levels: set[str]) -> None:
         task = engine.iter_task_events(
             prompt,
             self._messages,
@@ -120,6 +135,7 @@ class DesktopBridge:
             stream=False,
             show_progress=False,
             hidden_window=True,
+            approval_levels=approval_levels,
         )
         try:
             event = next(task)

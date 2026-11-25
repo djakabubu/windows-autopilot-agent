@@ -8,6 +8,21 @@ from desktop_backend import DesktopBridge
 
 
 class DesktopBridgeTests(unittest.TestCase):
+    def test_approval_levels_are_validated_and_reported(self):
+        bridge = DesktopBridge()
+
+        self.assertEqual(
+            bridge.get_status()["approval_levels"],
+            ["CAUTION", "DANGEROUS", "SAFE"],
+        )
+        self.assertFalse(bridge.set_approval_levels(["UNKNOWN"])["ok"])
+        self.assertFalse(bridge.set_approval_levels([[]])["ok"])
+        self.assertEqual(
+            bridge.set_approval_levels(["DANGEROUS"]),
+            {"ok": True},
+        )
+        self.assertEqual(bridge.get_status()["approval_levels"], ["DANGEROUS"])
+
     def test_rejecting_approval_keeps_shell_unexecuted(self):
         responses = [
             json.dumps({
