@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Mascot from "./Mascot";
-import type { MascotState } from "./mascotState";
+import type { MascotState, MascotVariant } from "./mascotState";
 import { desktopApi } from "./api";
 type Message =
   | { id: number; kind: "user" | "assistant" | "error" | "notice"; text: string }
@@ -55,6 +55,8 @@ function App() {
   const [model, setModel] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mascotState, setMascotState] = useState<MascotState>("idle");
+  const [mascotVariant, setMascotVariant] = useState<MascotVariant | null>(null);
+  const previousVariants = useRef<Partial<Record<"thinking" | "acting", MascotVariant>>>({});
   const [connectionMessage, setConnectionMessage] = useState("Connessione al motore…");
   const nextId = useRef(2);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,25 @@ function App() {
   const addMessage = (message: NewMessage) => {
     const nextMessage: Message = { ...message, id: nextId.current++ };
     setMessages((current) => [...current, nextMessage]);
+  };
+
+  const setStateWithVariant = (state: MascotState) => {
+    setMascotState(state);
+    const options: Partial<Record<"thinking" | "acting", MascotVariant[]>> = {
+      thinking: ["think-scan", "think-tilt", "think-pulse"],
+      acting: ["act-document", "act-folder", "act-search"],
+    };
+    const variants = state === "thinking" || state === "acting" ? options[state] : undefined;
+    if (!variants) {
+      setMascotVariant(null);
+      return;
+    }
+    const variantState = state as "thinking" | "acting";
+    const previous = previousVariants.current[variantState];
+    const candidates = variants.filter((candidate) => candidate !== previous);
+    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+    previousVariants.current[variantState] = selected;
+    setMascotVariant(selected);
   };
 
   useEffect(() => {
@@ -93,11 +114,11 @@ function App() {
               || event.status === "success"
               || event.status === "idle"
             ) {
-              setMascotState(event.status);
+              setStateWithVariant(event.status);
             }
           } else if (event.type === "message" && event.text) {
             addMessage({ kind: "assistant", text: event.text });
-            setMascotState("speaking");
+            setStateWithVariant("speaking");
           } else if (event.type === "approval") {
             const approval: Approval = {
               id: event.id ?? "",
@@ -107,7 +128,7 @@ function App() {
               reasons: event.reasons ?? [],
             };
             setApprovals((current) => [...current, approval]);
-            setMascotState("approval");
+            setStateWithVariant("approval");
           } else if (event.type === "command_result") {
             addMessage({
               kind: "result",
@@ -117,12 +138,12 @@ function App() {
               code: event.code ?? 1,
               duration: event.duration ?? 0,
             });
-            setMascotState(event.code === 0 ? "acting" : "error");
+            setStateWithVariant(event.code === 0 ? "acting" : "error");
           } else if (event.type === "notice" && event.text) {
             addMessage({ kind: "notice", text: event.text });
           } else if (event.type === "error" && event.text) {
             addMessage({ kind: "error", text: event.text });
-            setMascotState("error");
+            setStateWithVariant("error");
           } else if (event.type === "task_finished") {
             setBusy(false);
             setApprovals([]);
@@ -133,7 +154,7 @@ function App() {
           setConnectionMessage(`Errore di comunicazione: ${String(error)}`);
           setConnectionError(String(error));
           setConnected(false);
-          setMascotState("error");
+          setStateWithVariant("error");
         }
       } finally {
         inFlight = false;
@@ -168,12 +189,12 @@ function App() {
     addMessage({ kind: "user", text: prompt });
     setDraft("");
     setBusy(true);
-    setMascotState("thinking");
+    setStateWithVariant("thinking");
     const result = await desktopApi.start_task(prompt);
     if (!result.ok) {
       addMessage({ kind: "error", text: result.error ?? "Impossibile avviare la richiesta." });
       setBusy(false);
-      setMascotState("error");
+      setStateWithVariant("error");
     }
   };
 
@@ -191,7 +212,7 @@ function App() {
       kind: "notice",
       text: approved ? "Hai approvato il comando." : "Comando rifiutato. Non è stato eseguito.",
     });
-    setMascotState(approved ? "acting" : "thinking");
+    setStateWithVariant(approved ? "acting" : "thinking");
   };
 
   const resetConversation = async () => {
@@ -204,7 +225,7 @@ function App() {
     nextId.current = 2;
     setMessages([{ id: 1, kind: "assistant", text: "Ciao. Cosa vuoi fare?" }]);
     setApprovals([]);
-    setMascotState("idle");
+    setStateWithVariant("idle");
   };
 
   return (
@@ -230,8 +251,8 @@ function App() {
         <aside className="mascot-panel">
           <h1>Ci sono.</h1>
           <p className="subhead">Un passo alla volta, insieme.</p>
-          <div className="mascot-stage" data-state={mascotState}>
-            <Mascot state={mascotState} />
+          <div className="mascot-stage" data-state={mascotState} data-variant={mascotVariant ?? undefined}>
+            <Mascot state={mascotState} variant={mascotVariant} />
           </div>
           <p className="state-caption" aria-live="polite">
             {connectionError ? "Non riesco a raggiungere il motore." : stateLabels[mascotState]}

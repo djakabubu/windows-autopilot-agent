@@ -136,32 +136,67 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 }
 
 .mascot-art { display: block; width: 100%; overflow: visible; filter: drop-shadow(0 18px 22px #151e1c35); }
-.mascot-drift, .mascot-flow, .mascot-eyes, .mascot-mouth, .mascot-brows { transform-box: fill-box; transform-origin: center; }
-.mascot-drift { animation: mascot-float 4.8s ease-in-out infinite; }
-.mascot-flow { animation: mascot-flow 6.4s ease-in-out infinite; }
-.mascot-eyes { animation: mascot-blink 5.2s ease-in-out infinite; }
-.mascot-talking-mouth { animation: mascot-talk 380ms ease-in-out infinite alternate; }
-.mascot-stage[data-state="thinking"] .mascot-drift { animation-duration: 2.2s; }
-.mascot-stage[data-state="thinking"] .mascot-flow { animation-duration: 3.2s; }
-.mascot-stage[data-state="thinking"] .mascot-eyes { transform: translateY(-2px); }
-.mascot-stage[data-state="acting"] .mascot-drift { animation-duration: 1.8s; }
-.mascot-stage[data-state="acting"] .mascot-flow { animation-duration: 2.6s; }
-.mascot-stage[data-state="acting"] .mascot-eyes { transform: translateY(1px) scaleY(.92); }
-.mascot-stage[data-state="speaking"] .mascot-mouth { transform-origin: 207px 199px; }
-.mascot-stage[data-state="approval"]::before { background: #d99a3b16; box-shadow: 0 0 0 14px #d99a3b08, 0 0 50px #d99a3b16; animation: approval-glow 2.4s ease-in-out infinite; }
-.mascot-stage[data-state="success"] .mascot-drift { animation: mascot-celebrate 750ms ease-out 1, mascot-float 4.8s ease-in-out 750ms infinite; }
-.mascot-stage[data-state="success"] .mascot-eyes { animation-name: mascot-happy-blink; }
-.mascot-stage[data-state="error"] .mascot-drift { animation: mascot-settle 520ms ease-out 1, mascot-float 4.8s ease-in-out 520ms infinite; }
-.mascot-stage[data-state="error"] .mascot-eyes { transform: translateY(2px) scaleY(.94); }
-.mascot-stage[data-state="error"] .mascot-art { filter: grayscale(.25) drop-shadow(0 12px 18px #151e1c25); }
-@keyframes mascot-float { 0%, 100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(-7px) rotate(.7deg); } }
-@keyframes mascot-flow { 0%, 100% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(3px, -4px) rotate(1deg); } }
-@keyframes mascot-blink { 0%, 91%, 95%, 100% { transform: scaleY(1); } 93% { transform: scaleY(.08); } }
-@keyframes mascot-happy-blink { 0%, 75%, 100% { transform: scaleY(1); } 86% { transform: scaleY(.12); } }
-@keyframes mascot-talk { from { transform: scaleY(.65); } to { transform: scaleY(1.5); } }
-@keyframes approval-glow { 0%, 100% { box-shadow: 0 0 0 10px #d99a3b06, 0 0 36px #d99a3b12; } 50% { box-shadow: 0 0 0 15px #d99a3b10, 0 0 52px #d99a3b1c; } }
-@keyframes mascot-celebrate { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-12px) scale(1.035); } 100% { transform: translateY(-4px) scale(1.02); } }
-@keyframes mascot-settle { 0% { transform: rotate(0); } 35% { transform: rotate(-5deg) translateY(4px); } 70% { transform: rotate(2deg) translateY(1px); } 100% { transform: rotate(-3deg) translateY(3px); } }
+.mascot-drift, .mascot-flow, .mascot-eyes, .mascot-eye, .mascot-mouth, .mascot-brows,
+.mascot-thinking-dots, .mascot-action-prop, .mascot-success-mark, .mascot-error-mark { transform-box: fill-box; transform-origin: center; }
+.mascot-drift { animation: mascot-float 6s ease-in-out infinite; }
+.mascot-flow { animation: mascot-flow 8s ease-in-out infinite; }
+.mascot-eyes { animation: mascot-gaze-idle 8.5s ease-in-out infinite; }
+.mascot-eye { transition: transform 150ms ease; }
+.mascot-art[data-blinking="true"] .mascot-eye { animation: mascot-blink 150ms ease-in-out both; }
+.mascot-thinking-dots, .mascot-action-prop, .mascot-success-mark, .mascot-error-mark, .mascot-error-brows, .mascot-approval-brows, .mascot-mouth-sad { opacity: 0; transition: opacity 240ms ease, transform 320ms cubic-bezier(.2, .75, .25, 1); }
+.mascot-thinking-dots, .mascot-action-prop, .mascot-success-mark, .mascot-error-mark { transform: translateY(6px) scale(.8); }
+.mascot-talking-mouth { animation: mascot-talk 280ms ease-in-out infinite alternate; }
+.mascot-stage[data-state="thinking"][data-variant="think-scan"] .mascot-drift { animation: mascot-think-drift 2.4s ease-in-out infinite; }
+.mascot-stage[data-state="thinking"] .mascot-thinking-dots,
+.mascot-stage[data-state="approval"] .mascot-thinking-dots { opacity: 1; transform: translateY(0) scale(1); }
+.mascot-stage[data-state="thinking"] .mascot-thinking-dots circle,
+.mascot-stage[data-state="approval"] .mascot-thinking-dots circle { animation: mascot-thought 1.1s ease-in-out infinite; }
+.mascot-stage[data-state="thinking"] .mascot-thinking-dots circle:nth-child(2),
+.mascot-stage[data-state="approval"] .mascot-thinking-dots circle:nth-child(2) { animation-delay: 140ms; }
+.mascot-stage[data-state="thinking"] .mascot-thinking-dots circle:nth-child(3),
+.mascot-stage[data-state="approval"] .mascot-thinking-dots circle:nth-child(3) { animation-delay: 280ms; }
+.mascot-stage[data-state="thinking"][data-variant="think-scan"] .mascot-eyes,
+.mascot-stage[data-state="acting"][data-variant="act-search"] .mascot-eyes { animation: mascot-gaze-scan 2.1s ease-in-out infinite; }
+.mascot-stage[data-state="thinking"][data-variant="think-tilt"] .mascot-flow { animation: mascot-think-flow 2.5s ease-in-out infinite; }
+.mascot-stage[data-state="thinking"][data-variant="think-tilt"] .mascot-eyes { animation: mascot-gaze-up 2.8s ease-in-out infinite; }
+.mascot-stage[data-state="thinking"][data-variant="think-pulse"]::before { animation: mascot-thought-halo 2.2s ease-in-out infinite; }
+.mascot-stage[data-state="thinking"] .mascot-mouth { opacity: .45; }
+.mascot-stage[data-state="acting"][data-variant="act-document"] .mascot-drift { animation: mascot-act-drift 1.25s ease-in-out infinite; }
+.mascot-stage[data-state="acting"][data-variant="act-folder"] .mascot-flow { animation: mascot-act-flow 1.4s ease-in-out infinite; }
+.mascot-stage[data-state="acting"] .mascot-action-prop { opacity: 0; transform: translateY(6px) scale(.8); }
+.mascot-stage[data-state="acting"][data-variant="act-document"] .mascot-prop-document,
+.mascot-stage[data-state="acting"][data-variant="act-folder"] .mascot-prop-folder,
+.mascot-stage[data-state="acting"][data-variant="act-search"] .mascot-prop-search { opacity: 1; transform: translateY(0) scale(1); animation: mascot-prop-float 1.3s ease-in-out infinite; }
+.mascot-stage[data-state="speaking"] .mascot-mouth { opacity: 0; }
+.mascot-stage[data-state="speaking"] .mascot-talking-mouth { opacity: 1; }
+.mascot-stage[data-state="approval"]::before { background: #d99a3b16; animation: mascot-thought-halo 2.2s ease-in-out infinite; }
+.mascot-stage[data-state="approval"] .mascot-approval-brows { opacity: 1; }
+.mascot-stage[data-state="success"] .mascot-art { animation: mascot-celebrate 750ms cubic-bezier(.2, .8, .2, 1) both; }
+.mascot-stage[data-state="success"] .mascot-success-mark { opacity: 1; transform: translateY(0) scale(1); animation: mascot-mark-in 350ms ease-out both; }
+.mascot-stage[data-state="error"] .mascot-art { animation: mascot-sad-dip 620ms cubic-bezier(.2, .75, .25, 1) both; filter: drop-shadow(0 18px 22px #151e1c35) saturate(.72); }
+.mascot-stage[data-state="error"] .mascot-drift, .mascot-stage[data-state="error"] .mascot-flow { animation-play-state: paused; }
+.mascot-stage[data-state="error"] .mascot-eyes { animation: mascot-gaze-idle 8.5s ease-in-out infinite; transform: translateY(2px) scale(.92); }
+.mascot-stage[data-state="error"] .mascot-brows { opacity: 0; }
+.mascot-stage[data-state="error"] .mascot-error-brows, .mascot-stage[data-state="error"] .mascot-mouth-sad { opacity: 1; }
+.mascot-stage[data-state="error"] .mascot-mouth { opacity: 0; }
+.mascot-stage[data-state="error"] .mascot-error-mark { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes mascot-float { 0%, 100% { transform: translateY(0) rotate(-.25deg); } 50% { transform: translateY(-2px) rotate(.25deg); } }
+@keyframes mascot-flow { 0%, 100% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(1px, -1px) rotate(.25deg); } }
+@keyframes mascot-blink { 0% { transform: scaleY(1); } 45% { transform: scaleY(.08); } 100% { transform: scaleY(1); } }
+@keyframes mascot-gaze-idle { 0%, 35%, 100% { transform: translate(0, 0); } 42%, 49% { transform: translate(2px, -1px); } 56% { transform: translate(-1px, 0); } }
+@keyframes mascot-gaze-scan { 0%, 100% { transform: translate(-1px, -2px); } 35% { transform: translate(3px, -1px); } 68% { transform: translate(-2px, 0); } }
+@keyframes mascot-gaze-up { 0%, 100% { transform: translate(0, -1px); } 50% { transform: translate(1px, -4px); } }
+@keyframes mascot-think-drift { 0%, 100% { transform: translateY(0) rotate(-.8deg); } 50% { transform: translateY(-7px) rotate(.8deg); } }
+@keyframes mascot-think-flow { 0%, 100% { transform: translate(0, 0) rotate(-1deg); } 50% { transform: translate(5px, -3px) rotate(1.5deg); } }
+@keyframes mascot-act-drift { 0%, 100% { transform: translate(0, 0) rotate(-1deg); } 50% { transform: translate(4px, -4px) rotate(1.5deg); } }
+@keyframes mascot-act-flow { 0%, 100% { transform: translate(0, 0) rotate(-1deg); } 50% { transform: translate(7px, -5px) rotate(2deg); } }
+@keyframes mascot-thought { 0%, 100% { opacity: .45; transform: translateY(1px); } 50% { opacity: 1; transform: translateY(-3px); } }
+@keyframes mascot-prop-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-5px) rotate(2deg); } }
+@keyframes mascot-talk { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@keyframes mascot-thought-halo { 0%, 100% { box-shadow: 0 0 0 0 #d99a3b10; } 50% { box-shadow: 0 0 0 12px #d99a3b0a, 0 0 36px #d99a3b20; } }
+@keyframes mascot-mark-in { from { opacity: 0; transform: translateY(4px) scale(.55); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes mascot-celebrate { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-12px) scale(1.035); } 75% { transform: translateY(2px) scale(.99); } 100% { transform: translateY(0) scale(1); } }
+@keyframes mascot-sad-dip { 0% { transform: translateY(0) rotate(0) scale(1); } 55% { transform: translateY(6px) rotate(2deg) scale(.985); } 100% { transform: translateY(4px) rotate(1deg) scale(.99); } }
 .state-caption { min-height: 36px; margin: 10px 0 4px; text-align: center; font-size: 14px; font-weight: 600; }
 .model-label { margin: 4px 0 0; color: var(--muted); font-size: 10px; text-align: center; overflow-wrap: anywhere; }
 
