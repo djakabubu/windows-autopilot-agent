@@ -281,6 +281,9 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 .composer input { min-width: 0; flex: 1; height: 40px; padding: 0 12px; border: 1px solid var(--button-border); border-radius: 8px; outline: none; color: var(--ink); background: var(--paper); font-size: 13px; }
 .composer input:focus { border-color: var(--ochre); box-shadow: 0 0 0 3px #bd823d1c; }
 .send-button { min-width: 76px; }
+.stop-button { min-width: 76px; border-color: #bd765c; color: #9a4f3b; }
+.stop-button:hover:not(:disabled) { border-color: #a95842; color: #843d2c; background: #f7e9e4; }
+.stop-button:disabled { opacity: .72; }
 .chat-footer { padding: 0 20px 12px; color: var(--muted); font-size: 10px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .panel-backdrop { position: fixed; z-index: 10; inset: 0; display: flex; justify-content: flex-start; background: #12171566; }

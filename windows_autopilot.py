@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import base64
 import builtins
+import contextlib
 import ctypes
 import getpass
 import json
@@ -55,8 +56,10 @@ import os
 import platform
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -832,11 +835,17 @@ class OpenRouterError(RuntimeError):
     """Raised for any OpenRouter API failure."""
 
 
+class TaskCancelled(RuntimeError):
+    """Raised when the desktop user cancels an in-progress task."""
+
+
 def call_openrouter(
     messages: list[dict[str, str]],
     model: str,
     max_retries: int = 3,
     stream: bool = True,
+    cancel_event: Optional[threading.Event] = None,
+    show_progress: bool = True,
 ) -> str:
     """Call the OpenRouter chat completions API and return the content.
 
@@ -867,6 +876,8 @@ def call_openrouter(
     last_error: Optional[Exception] = None
 
     for attempt in range(1, max_retries + 1):
+        if cancel_event and cancel_event.is_set():
+            raise TaskCancelled("Task cancelled by the user.")
         request_payload = dict(payload)
         if use_json_mode:
             request_payload["response_format"] = {"type": "json_object"}
@@ -878,8 +889,25 @@ def call_openrouter(
             method="POST",
         )
 
+        cancel_watch_done = threading.Event()
         try:
             with urllib.request.urlopen(req, timeout=120) as response:
+                if cancel_event and cancel_event.is_set():
+                    raise TaskCancelled("Task cancelled by the user.")
+                if cancel_event:
+                    response_socket = response.fp.raw._sock
+
+                    def interrupt_request() -> None:
+                        while not cancel_watch_done.wait(0.05):
+                            if cancel_event.wait(0.05):
+                                try:
+                                    response_socket.shutdown(socket.SHUT_RDWR)
+                                except OSError:
+                                    pass
+                                return
+
+                    threading.Thread(target=interrupt_request, daemon=True).start()
+
                 if not stream:
                     raw = response.read().decode("utf-8")
                     data = json.loads(raw)
@@ -895,50 +923,62 @@ def call_openrouter(
                 mode: str = "unknown"  # reasoning | content
                 reasoning_shown = False
                 progress_shown = False
-                for raw_line in response:
-                    if not raw_line:
-                        continue
-                    line = raw_line.decode("utf-8", errors="replace").strip()
-                    if not line.startswith("data:"):
-                        continue
-                    data_str = line[5:].strip()
-                    if not data_str or data_str == "[DONE]":
-                        break
+                stream_done = False
+                while not stream_done:
+                    if cancel_event and cancel_event.is_set():
+                        raise TaskCancelled("Task cancelled by the user.")
                     try:
-                        chunk = json.loads(data_str)
-                    except json.JSONDecodeError:
-                        continue
-                    choices = chunk.get("choices") or []
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta") or {}
-                    reasoning = delta.get("reasoning") or delta.get("reasoning_content")
-                    piece = delta.get("content")
+                        lines = [next(response)]
+                    except StopIteration:
+                        break
+                    for raw_line in lines:
+                        if not raw_line:
+                            continue
+                        line = raw_line.decode("utf-8", errors="replace").strip()
+                        if not line.startswith("data:"):
+                            continue
+                        data_str = line[5:].strip()
+                        if not data_str:
+                            continue
+                        if data_str == "[DONE]":
+                            stream_done = True
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta") or {}
+                        reasoning = delta.get("reasoning") or delta.get("reasoning_content")
+                        piece = delta.get("content")
 
-                    if reasoning:
-                        if mode == "unknown":
-                            print()
-                            print(dim("── reasoning ──"))
-                            mode = "reasoning"
-                        if not reasoning_shown:
-                            reasoning_shown = True
-                        print(f"{Colors.YELLOW}{reasoning}{Colors.ENDC}", end="", flush=True)
+                        if reasoning:
+                            if mode == "unknown":
+                                if show_progress:
+                                    print()
+                                    print(dim("── reasoning ──"))
+                                mode = "reasoning"
+                            if not reasoning_shown:
+                                reasoning_shown = True
+                            if show_progress:
+                                print(f"{Colors.YELLOW}{reasoning}{Colors.ENDC}", end="", flush=True)
 
-                    if piece:
-                        content_parts.append(piece)
-                        if mode == "unknown":
-                            mode = "content"
-                        if mode == "content" and not progress_shown:
-                            print(dim("🤖 processing..."), end="", flush=True)
-                            progress_shown = True
-                        # Light visual indicator: a dot per chunk.
-                        if mode == "content":
-                            print(dim("."), end="", flush=True)
+                        if piece:
+                            content_parts.append(piece)
+                            if mode == "unknown":
+                                mode = "content"
+                            if show_progress and mode == "content" and not progress_shown:
+                                print(dim("🤖 processing..."), end="", flush=True)
+                                progress_shown = True
+                            if show_progress and mode == "content":
+                                print(dim("."), end="", flush=True)
 
-                if reasoning_shown:
+                if show_progress and reasoning_shown:
                     print()
                     print(dim("── end of reasoning ──"))
-                elif progress_shown:
+                elif show_progress and progress_shown:
                     print()
 
                 content = "".join(content_parts)
@@ -948,6 +988,12 @@ def call_openrouter(
                     )
                 return content
 
+        except TaskCancelled:
+            raise
+        except (TimeoutError, urllib.error.URLError) as exc:
+            if cancel_event and cancel_event.is_set():
+                raise TaskCancelled("Task cancelled by the user.") from exc
+            last_error = OpenRouterError(f"network error: {exc}")
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             if use_json_mode and exc.code in {400, 404, 422} and (
@@ -959,19 +1005,28 @@ def call_openrouter(
 
             last_error = OpenRouterError(f"HTTP {exc.code}: {limit_text(body, 2000)}")
 
-        except (urllib.error.URLError, TimeoutError) as exc:
-            last_error = OpenRouterError(f"network error: {exc}")
-
         except json.JSONDecodeError as exc:
             last_error = OpenRouterError(f"non-JSON response: {exc}")
 
+        except OSError as exc:
+            if cancel_event and cancel_event.is_set():
+                raise TaskCancelled("Task cancelled by the user.") from exc
+            last_error = OpenRouterError(f"network error: {exc}")
+
         except Exception as exc:
             last_error = exc if isinstance(exc, Exception) else Exception(str(exc))
+        finally:
+            cancel_watch_done.set()
 
         if attempt < max_retries:
             delay = 1.5 ** (attempt - 1)
-            print(dim(f"↻ retry {attempt + 1}/{max_retries} in {delay:.1f}s..."))
-            time.sleep(delay)
+            if show_progress:
+                print(dim(f"↻ retry {attempt + 1}/{max_retries} in {delay:.1f}s..."))
+            if cancel_event:
+                if cancel_event.wait(delay):
+                    raise TaskCancelled("Task cancelled by the user.")
+            else:
+                time.sleep(delay)
 
     raise OpenRouterError(str(last_error or "unknown OpenRouter error"))
 
@@ -1121,6 +1176,7 @@ def execute_shell_command(
     command: str,
     show_progress: bool = True,
     hidden_window: bool = False,
+    cancel_event: Optional[threading.Event] = None,
 ) -> tuple[str, str, int, float]:
     """Execute an already-authorized command in PowerShell.
 
@@ -1209,28 +1265,51 @@ def execute_shell_command(
         })
         return stdout, stderr, 1, duration
 
-    try:
-        stdout_bytes, stderr_bytes = process.communicate(timeout=COMMAND_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        kill_process_tree(process.pid)
-        stdout_bytes, stderr_bytes = process.communicate()
-        stdout = _decode_output(stdout_bytes)
-        stderr = _decode_output(stderr_bytes) + f"\nTimeout after {COMMAND_TIMEOUT}s."
-        duration = time.monotonic() - start
-        write_activity_log({
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-            "source": "powershell",
-            "event": "command_result",
-            "command": command,
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": 124,
-            "duration_seconds": duration,
-        })
-        return stdout, stderr, 124, duration
-    except KeyboardInterrupt:
-        kill_process_tree(process.pid)
-        raise
+    deadline = time.monotonic() + COMMAND_TIMEOUT
+    while True:
+        if cancel_event and cancel_event.is_set():
+            kill_process_tree(process.pid)
+            stdout_bytes, stderr_bytes = process.communicate()
+            stdout = _decode_output(stdout_bytes)
+            stderr = _decode_output(stderr_bytes)
+            duration = time.monotonic() - start
+            write_activity_log({
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "source": "powershell",
+                "event": "command_result",
+                "command": command,
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_code": 130,
+                "duration_seconds": duration,
+            })
+            return stdout, stderr, 130, duration
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            kill_process_tree(process.pid)
+            stdout_bytes, stderr_bytes = process.communicate()
+            stdout = _decode_output(stdout_bytes)
+            stderr = _decode_output(stderr_bytes) + f"\nTimeout after {COMMAND_TIMEOUT}s."
+            duration = time.monotonic() - start
+            write_activity_log({
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "source": "powershell",
+                "event": "command_result",
+                "command": command,
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_code": 124,
+                "duration_seconds": duration,
+            })
+            return stdout, stderr, 124, duration
+        try:
+            stdout_bytes, stderr_bytes = process.communicate(
+                timeout=min(0.2, remaining) if cancel_event else remaining
+            )
+            break
+        except subprocess.TimeoutExpired:
+            if not cancel_event:
+                continue
 
     stdout = _decode_output(stdout_bytes)
     stderr = _decode_output(stderr_bytes)
@@ -1316,6 +1395,7 @@ def iter_task_events(
     show_progress: bool = True,
     hidden_window: bool = False,
     approval_levels: Optional[set[str]] = None,
+    cancel_event: Optional[threading.Event] = None,
 ) -> Generator[dict[str, Any], Optional[str], list[dict[str, str]]]:
     """Run a task and yield presentation-independent events.
 
@@ -1336,10 +1416,22 @@ def iter_task_events(
 
     step = 1
     while step <= max_steps:
+        if cancel_event and cancel_event.is_set():
+            yield {"type": "stopped"}
+            return messages
         yield {"type": "status", "status": "thinking", "step": step, "max_steps": max_steps}
 
         try:
-            raw = call_openrouter(messages, model, stream=stream)
+            raw = call_openrouter(
+                messages,
+                model,
+                stream=stream,
+                cancel_event=cancel_event,
+                show_progress=show_progress,
+            )
+        except TaskCancelled:
+            yield {"type": "stopped"}
+            return messages
         except OpenRouterError as exc:
             write_activity_log({
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -1350,6 +1442,9 @@ def iter_task_events(
             yield {"type": "error", "message": str(exc)}
             return messages
 
+        if cancel_event and cancel_event.is_set():
+            yield {"type": "stopped"}
+            return messages
         data = parse_agent_response(raw)
         message, action = normalize_agent_response(data)
 
@@ -1429,6 +1524,9 @@ def iter_task_events(
                 "level": assessment.level,
                 "reasons": assessment.reasons[:5],
             }
+            if cancel_event and cancel_event.is_set():
+                yield {"type": "stopped"}
+                return messages
             if decision == "no":
                 stderr = "Command rejected by the user."
                 yield {
@@ -1451,12 +1549,19 @@ def iter_task_events(
             if decision == "all":
                 allow_caution = True
 
+        if cancel_event and cancel_event.is_set():
+            yield {"type": "stopped"}
+            return messages
         yield {"type": "status", "status": "acting", "step": step, "max_steps": max_steps}
         output, stderr, code, duration = execute_shell_command(
             command,
             show_progress=show_progress,
             hidden_window=hidden_window,
+            cancel_event=cancel_event,
         )
+        if cancel_event and cancel_event.is_set():
+            yield {"type": "stopped"}
+            return messages
         yield {
             "type": "command_result",
             "command": command,

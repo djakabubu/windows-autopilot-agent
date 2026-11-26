@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -25,6 +27,59 @@ class TaskEventTests(unittest.TestCase):
         )
         self.assertEqual(events[1]["message"], "All set.")
         self.assertEqual(messages[-1]["role"], "assistant")
+
+    def test_openrouter_stream_can_be_cancelled_while_waiting_for_data(self):
+        class InterruptibleSocket:
+            def __init__(self):
+                self.closed = threading.Event()
+
+            def shutdown(self, _how):
+                self.closed.set()
+
+        class BlockingResponse:
+            def __init__(self):
+                self.waiting = threading.Event()
+                self.socket = InterruptibleSocket()
+                self.fp = type("FilePointer", (), {
+                    "raw": type("RawSocket", (), {"_sock": self.socket})(),
+                })()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                self.waiting.set()
+                self.socket.closed.wait()
+                raise OSError("socket closed")
+
+        cancellation = threading.Event()
+        outcome = {}
+        response = BlockingResponse()
+
+        def run_request():
+            try:
+                agent.call_openrouter(
+                    [], "test-model", cancel_event=cancellation, show_progress=False,
+                )
+            except Exception as exc:
+                outcome["error"] = exc
+
+        with patch.object(agent, "OPENROUTER_API_KEY", "test-key"):
+            with patch.object(agent.urllib.request, "urlopen", return_value=response):
+                worker = threading.Thread(target=run_request)
+                worker.start()
+                self.assertTrue(response.waiting.wait(2))
+                cancellation.set()
+                worker.join(2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertIsInstance(outcome.get("error"), agent.TaskCancelled)
 
     def test_selected_safe_level_requires_approval(self):
         messages = [{"role": "system", "content": "system"}]

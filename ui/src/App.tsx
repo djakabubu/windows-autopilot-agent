@@ -225,6 +225,8 @@ function App() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const cancellingRef = useRef(false);
   const [connected, setConnected] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [connectionError, setConnectionError] = useState("");
@@ -340,6 +342,9 @@ function App() {
             setStateWithVariant("error");
           } else if (event.type === "task_finished") {
             setBusy(false);
+            if (cancellingRef.current) addMessage({ kind: "notice", text: "Attività fermata." });
+            cancellingRef.current = false;
+            setCancelling(false);
             setApprovals([]);
           }
         });
@@ -459,6 +464,18 @@ function App() {
       addMessage({ kind: "error", text: result.error ?? "Impossibile avviare la richiesta." });
       setBusy(false);
       setStateWithVariant("error");
+    }
+  };
+
+  const cancelTask = async () => {
+    if (!busy || cancelling) return;
+    cancellingRef.current = true;
+    setCancelling(true);
+    const result = await desktopApi.cancel_task();
+    if (!result.ok) {
+      cancellingRef.current = false;
+      setCancelling(false);
+      addMessage({ kind: "error", text: result.error ?? "Impossibile fermare l'attività." });
     }
   };
 
@@ -678,9 +695,15 @@ function App() {
               autoComplete="off"
               disabled={busy || readOnly || !settingsReady || !connected || !configured}
             />
-            <button className="primary-button send-button" type="submit" disabled={busy || readOnly || !settingsReady || !draft.trim() || !configured}>
-              Invia
-            </button>
+            {busy ? (
+              <button className="quiet-button stop-button" type="button" onClick={() => void cancelTask()} disabled={cancelling}>
+                {cancelling ? "Interruzione…" : "Stop"}
+              </button>
+            ) : (
+              <button className="primary-button send-button" type="submit" disabled={readOnly || !settingsReady || !draft.trim() || !configured}>
+                Invia
+              </button>
+            )}
           </form>
           <footer className="chat-footer">
             Verifica sempre i comandi proposti: la classificazione del rischio non è una sandbox.

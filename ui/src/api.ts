@@ -50,6 +50,7 @@ export const desktopApi = {
   get_status: () => request<DesktopStatus>("/api/status"),
   poll_events: () => request<AgentEvent[]>("/api/events"),
   start_task: (prompt: string) => operation("/api/task", { prompt }),
+  cancel_task: () => operation("/api/task/cancel", {}),
   respond_to_approval: (approvalId: string, approved: boolean) =>
     operation("/api/approval", { approvalId, approved }),
   new_conversation: () => operation("/api/conversation", {}),

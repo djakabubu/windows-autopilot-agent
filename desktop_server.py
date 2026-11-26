@@ -159,6 +159,8 @@ class DesktopRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json()
             if route == "/api/task":
                 result = self.server.bridge.start_task(payload.get("prompt", ""))
+            elif route == "/api/task/cancel":
+                result = self.server.bridge.cancel_task()
             elif route == "/api/approval":
                 result = self.server.bridge.respond_to_approval(
                     payload.get("approvalId", ""),

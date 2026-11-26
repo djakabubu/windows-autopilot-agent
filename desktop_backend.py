@@ -53,6 +53,7 @@ class DesktopBridge:
         self._events: queue.Queue[dict[str, Any]] = queue.Queue()
         self._lock = threading.Lock()
         self._busy = False
+        self._cancel_event: Optional[threading.Event] = None
         self._pending_approval: Optional[dict[str, Any]] = None
         self._messages = [{"role": "system", "content": engine.build_system_prompt()}]
         self._model = load_saved_model()
@@ -118,11 +119,12 @@ class DesktopBridge:
             if self._busy:
                 return {"ok": False, "error": "È già in corso una richiesta."}
             self._busy = True
+            self._cancel_event = threading.Event()
             approval_levels = set(self._approval_levels)
             self._log_activity("user_request", text=request)
             worker = threading.Thread(
                 target=self._run_task,
-                args=(request, approval_levels),
+                args=(request, approval_levels, self._cancel_event),
                 name="windows-agent-task",
                 daemon=True,
             )
@@ -156,8 +158,21 @@ class DesktopBridge:
             ]
         return {"ok": True}
 
+    def cancel_task(self) -> dict[str, Any]:
+        with self._lock:
+            if not self._busy or not self._cancel_event:
+                return {"ok": False, "error": "Non c'è nessuna attività da fermare."}
+            self._cancel_event.set()
+            if self._pending_approval:
+                self._pending_approval["approved"] = False
+                self._pending_approval["event"].set()
+            self._log_activity("task_cancelled")
+        return {"ok": True}
+
     def shutdown(self) -> None:
         with self._lock:
+            if self._cancel_event:
+                self._cancel_event.set()
             if self._pending_approval:
                 self._pending_approval["approved"] = False
                 self._pending_approval["event"].set()
@@ -173,7 +188,12 @@ class DesktopBridge:
     def _emit(self, event: dict[str, Any]) -> None:
         self._events.put(event)
 
-    def _run_task(self, prompt: str, approval_levels: set[str]) -> None:
+    def _run_task(
+        self,
+        prompt: str,
+        approval_levels: set[str],
+        cancel_event: threading.Event,
+    ) -> None:
         task = engine.iter_task_events(
             prompt,
             self._messages,
@@ -183,6 +203,7 @@ class DesktopBridge:
             show_progress=False,
             hidden_window=True,
             approval_levels=approval_levels,
+            cancel_event=cancel_event,
         )
         try:
             event = next(task)
@@ -253,6 +274,8 @@ class DesktopBridge:
                 event = task.send(decision)
         except StopIteration as result:
             self._messages = result.value
+        except engine.TaskCancelled:
+            self._emit({"type": "status", "status": "idle"})
         except Exception as exc:
             self._emit({
                 "type": "error",
@@ -265,4 +288,6 @@ class DesktopBridge:
                     self._pending_approval["event"].set()
                     self._pending_approval = None
                 self._busy = False
+                if self._cancel_event is cancel_event:
+                    self._cancel_event = None
             self._emit({"type": "task_finished"})

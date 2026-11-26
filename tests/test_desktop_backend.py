@@ -1,5 +1,6 @@
 import json
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -47,6 +48,27 @@ class DesktopBridgeTests(unittest.TestCase):
                 self.assertEqual(bridge.set_model("openrouter/auto"), {"ok": True})
                 reloaded_bridge = DesktopBridge()
         self.assertEqual(reloaded_bridge.get_status()["model"], "openrouter/auto")
+
+    def test_cancel_task_signals_worker_and_rejects_pending_approval(self):
+        bridge = DesktopBridge()
+        approval_event = threading.Event()
+        bridge._busy = True
+        bridge._cancel_event = threading.Event()
+        bridge._pending_approval = {
+            "id": "approval-id",
+            "command": "Remove-Item test.txt",
+            "approved": True,
+            "event": approval_event,
+        }
+
+        self.assertEqual(bridge.cancel_task(), {"ok": True})
+        self.assertTrue(bridge._cancel_event.is_set())
+        self.assertTrue(approval_event.is_set())
+        self.assertFalse(bridge._pending_approval["approved"])
+
+        bridge._busy = False
+        bridge._cancel_event = None
+        self.assertFalse(bridge.cancel_task()["ok"])
 
     def test_rejecting_approval_keeps_shell_unexecuted(self):
         responses = [
