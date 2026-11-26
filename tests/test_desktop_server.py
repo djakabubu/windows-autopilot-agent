@@ -85,6 +85,22 @@ class DesktopHTTPServerTests(unittest.TestCase):
         self.assertEqual(payload, {"ok": True})
         self.bridge.set_approval_levels.assert_called_once_with(["DANGEROUS"])
 
+    def test_model_setting_is_forwarded_to_the_bridge(self):
+        self.bridge.set_model.return_value = {"ok": True}
+        body = json.dumps({"model": "openrouter/free"}).encode("utf-8")
+        request = Request(
+            f"{self.url}/api/settings/model",
+            data=body,
+            headers={"Content-Type": "application/json", "Origin": self.url},
+            method="POST",
+        )
+
+        with urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(payload, {"ok": True})
+        self.bridge.set_model.assert_called_once_with("openrouter/free")
+
     def test_task_request_is_forwarded_to_the_approval_gated_bridge(self):
         body = json.dumps({"prompt": "Check disk space"}).encode("utf-8")
         request = Request(

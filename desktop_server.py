@@ -168,6 +168,8 @@ class DesktopRequestHandler(BaseHTTPRequestHandler):
                 result = self.server.bridge.new_conversation()
             elif route == "/api/settings/approvals":
                 result = self.server.bridge.set_approval_levels(payload.get("levels"))
+            elif route == "/api/settings/model":
+                result = self.server.bridge.set_model(payload.get("model"))
             else:
                 self._send_json(404, {"ok": False, "error": "Endpoint non trovato."})
                 return

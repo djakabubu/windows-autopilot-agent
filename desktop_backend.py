@@ -2,15 +2,48 @@
 
 from __future__ import annotations
 
+import json
 import os
 import queue
 import threading
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 import windows_autopilot as engine
 from activity_log import write_activity_log
+
+
+MODEL_SETTINGS_FILE = Path(
+    os.environ.get(
+        "LOCALAPPDATA",
+        str(Path.home() / "AppData" / "Local"),
+    )
+) / "WindowsAutopilotAgent" / "settings.json"
+
+
+def load_saved_model() -> str:
+    try:
+        with MODEL_SETTINGS_FILE.open("r", encoding="utf-8") as settings_file:
+            model = json.load(settings_file).get("model")
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+    except (OSError, ValueError, AttributeError):
+        pass
+    return engine.DEFAULT_MODEL
+
+
+def save_model(model: str) -> bool:
+    try:
+        MODEL_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        MODEL_SETTINGS_FILE.write_text(
+            json.dumps({"model": model}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return True
+    except OSError:
+        return False
 
 
 class DesktopBridge:
@@ -22,7 +55,7 @@ class DesktopBridge:
         self._busy = False
         self._pending_approval: Optional[dict[str, Any]] = None
         self._messages = [{"role": "system", "content": engine.build_system_prompt()}]
-        self._model = engine.DEFAULT_MODEL
+        self._model = load_saved_model()
         self._approval_levels = {"SAFE", "CAUTION", "DANGEROUS"}
 
     def get_status(self) -> dict[str, Any]:
@@ -44,6 +77,20 @@ class DesktopBridge:
             if self._busy:
                 return {"ok": False, "error": "Non puoi cambiare le conferme durante un'attività."}
             self._approval_levels = set(levels)
+        return {"ok": True}
+
+    def set_model(self, model: Any) -> dict[str, Any]:
+        if not isinstance(model, str) or not model.strip():
+            return {"ok": False, "error": "Inserisci un identificativo modello valido."}
+        selected_model = model.strip()
+        if len(selected_model) > 200:
+            return {"ok": False, "error": "Il nome del modello è troppo lungo (massimo 200 caratteri)."}
+        with self._lock:
+            if self._busy:
+                return {"ok": False, "error": "Non puoi cambiare modello durante un'attività."}
+            if not save_model(selected_model):
+                return {"ok": False, "error": "Impossibile salvare il modello nelle impostazioni locali."}
+            self._model = selected_model
         return {"ok": True}
 
     def poll_events(self) -> list[dict[str, Any]]:

@@ -97,6 +97,14 @@ function getActivitySteps(messages: Message[]): ActivityStep[] {
 
 const HISTORY_KEY = "winzi.conversations.v1";
 const SETTINGS_KEY = "winzi.settings.v1";
+const modelSuggestions = [
+  "openrouter/free",
+  "openrouter/auto",
+  "openrouter/auto-code",
+  "openai/GPT-6-Luna",
+  "deepseek/deepseek-v4-flash-0731",
+  "anthropic/claude-haiku-5.5",
+];
 const greeting: Message = { id: 1, kind: "assistant", text: "Ciao, sono Winzi! Cosa vuoi fare?" };
 const suggestedPrompts = [
   {
@@ -221,6 +229,8 @@ function App() {
   const [configured, setConfigured] = useState(false);
   const [connectionError, setConnectionError] = useState("");
   const [model, setModel] = useState("");
+  const [modelDraft, setModelDraft] = useState("");
+  const [modelSaving, setModelSaving] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(initialSettings.current.theme);
   const [mascotState, setMascotState] = useState<MascotState>("idle");
   const [welcomeCopy, setWelcomeCopy] = useState(() => getWelcomeCopy("idle"));
@@ -281,6 +291,7 @@ function App() {
           setConnected(true);
           setConfigured(status.configured);
           setModel(status.model);
+          setModelDraft((current) => current || status.model);
           setConnectionMessage(
             status.configured ? "Motore collegato" : "Configura la chiave API",
           );
@@ -406,6 +417,21 @@ function App() {
     setReadOnly(true);
     setOpenPanel(null);
     setApprovals([]);
+  };
+
+  const updateModel = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextModel = modelDraft.trim();
+    if (!nextModel || busy || modelSaving || nextModel === model) return;
+    setModelSaving(true);
+    const result = await desktopApi.set_model(nextModel);
+    setModelSaving(false);
+    if (!result.ok) {
+      addMessage({ kind: "error", text: result.error ?? "Impossibile aggiornare il modello." });
+      return;
+    }
+    setModel(nextModel);
+    setModelDraft(nextModel);
   };
 
   const updateApprovalLevel = async (level: string, checked: boolean) => {
@@ -704,8 +730,27 @@ function App() {
                 <section className="settings-group">
                   <h3>Motore</h3>
                   <p>Stato: {connected ? (configured ? "Collegato" : "Chiave API non configurata") : "Non collegato"}</p>
-                  <p>Modello: {model || "Non disponibile"}</p>
                   <p>La chiave API si configura nelle variabili d'ambiente di Windows e non viene letta né mostrata qui.</p>
+                  <form className="model-settings" onSubmit={(event) => void updateModel(event)}>
+                    <label htmlFor="model-name">Modello attivo</label>
+                    <input
+                      id="model-name"
+                      type="text"
+                      list="model-suggestions"
+                      value={modelDraft}
+                      onChange={(event) => setModelDraft(event.target.value)}
+                      maxLength={200}
+                      autoComplete="off"
+                      disabled={busy || modelSaving}
+                    />
+                    <datalist id="model-suggestions">
+                      {modelSuggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
+                    </datalist>
+                    <button className="quiet-button" type="submit" disabled={busy || modelSaving || !modelDraft.trim() || modelDraft.trim() === model}>
+                      {modelSaving ? "Salvataggio…" : "Salva modello"}
+                    </button>
+                    <small>Il modello resta salvato su questo dispositivo fino a una nuova modifica.</small>
+                  </form>
                 </section>
                 <section className="settings-group approval-settings">
                   <h3>Richiedi approvazione per</h3>

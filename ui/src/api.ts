@@ -54,4 +54,5 @@ export const desktopApi = {
     operation("/api/approval", { approvalId, approved }),
   new_conversation: () => operation("/api/conversation", {}),
   set_approval_levels: (levels: string[]) => operation("/api/settings/approvals", { levels }),
+  set_model: (model: string) => operation("/api/settings/model", { model }),
 };

@@ -1,6 +1,8 @@
 import json
+import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import windows_autopilot as engine
@@ -22,6 +24,29 @@ class DesktopBridgeTests(unittest.TestCase):
             {"ok": True},
         )
         self.assertEqual(bridge.get_status()["approval_levels"], ["DANGEROUS"])
+
+    def test_model_is_validated_saved_and_cannot_change_while_busy(self):
+        bridge = DesktopBridge()
+        with patch("desktop_backend.save_model", return_value=True) as save_model:
+            self.assertFalse(bridge.set_model("  ")["ok"])
+            self.assertFalse(bridge.set_model("x" * 201)["ok"])
+            self.assertEqual(bridge.set_model("  openrouter/free  "), {"ok": True})
+            save_model.assert_called_once_with("openrouter/free")
+            self.assertEqual(bridge.get_status()["model"], "openrouter/free")
+
+            bridge._busy = True
+            self.assertFalse(bridge.set_model("openrouter/auto")["ok"])
+            self.assertEqual(bridge.get_status()["model"], "openrouter/free")
+            save_model.assert_called_once_with("openrouter/free")
+
+    def test_saved_model_is_loaded_on_startup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            settings_path = Path(directory) / "settings.json"
+            with patch("desktop_backend.MODEL_SETTINGS_FILE", settings_path):
+                bridge = DesktopBridge()
+                self.assertEqual(bridge.set_model("openrouter/auto"), {"ok": True})
+                reloaded_bridge = DesktopBridge()
+        self.assertEqual(reloaded_bridge.get_status()["model"], "openrouter/auto")
 
     def test_rejecting_approval_keeps_shell_unexecuted(self):
         responses = [
