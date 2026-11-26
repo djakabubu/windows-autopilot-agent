@@ -129,6 +129,19 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 .suggested-prompt:hover:not(:disabled) { border-color: var(--ochre); background: var(--paper); }
 .suggested-prompt span { color: var(--ochre-dark); font-size: 17px; line-height: 12px; }
 .quick-start .quick-start-note { margin-top: 10px; font-size: 10px; }
+.activity-list { width: 100%; min-height: 0; display: flex; flex-direction: column; flex: 1; margin: 22px 0 8px; }
+.activity-list h2 { margin: 0 0 10px; font-size: 14px; font-weight: 650; }
+.activity-scroll { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.activity-scroll ol { display: grid; gap: 5px; margin: 0; padding: 0 5px 0 0; list-style: none; }
+.activity-link { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 7px; width: 100%; padding: 7px 8px; border: 0; border-radius: 7px; color: var(--ink); background: transparent; text-align: left; font-size: 11px; line-height: 1.4; }
+.activity-link:hover { background: var(--paper); }
+.activity-status { display: grid; width: 17px; height: 17px; place-items: center; border-radius: 50%; color: #52775e; background: #e7efe8; font-size: 11px; font-weight: 700; }
+.activity-failed .activity-status { color: #9a483d; background: #f5e5e1; }
+.activity-not-executed .activity-status { color: var(--muted); background: var(--command-bg); }
+.window[data-theme="dark"] .activity-status { color: #b4d3ba; background: #35483b; }
+.window[data-theme="dark"] .activity-failed .activity-status { color: #efb6a5; background: #573932; }
+.window[data-theme="dark"] .activity-not-executed .activity-status { color: var(--muted); background: var(--command-bg); }
+.activity-note { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .mascot-stage {
   position: relative;
   width: min(100%, 300px);
@@ -303,7 +316,7 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 
 @media (max-width: 760px) {
   .app-body { grid-template-columns: 1fr; grid-template-rows: 145px 1fr; }
-  .quick-start { display: none; }
+  .quick-start, .activity-list { display: none; }
   .mascot-panel { display: grid; grid-template-columns: 82px 1fr; grid-template-rows: 30px 24px 22px 1fr; column-gap: 12px; padding: 8px 16px; }
   .mascot-nav { grid-column: 1 / 3; grid-row: 1; justify-content: flex-end; margin: 0; }
   .nav-button { flex: 0 0 auto; min-height: 28px; padding: 4px 8px; font-size: 10px; }

@@ -138,6 +138,7 @@ La prima versione è pensata per adulti, anche non tecnici. Il tono visivo deve 
 
 ## Next Steps
 
+- [x] Sostituire i suggerimenti con un riepilogo scorrevole delle operazioni concluse/non riuscite, collegato ai messaggi della chat, derivato dalle conversazioni salvate e ripristinando i suggerimenti nelle nuove chat; build UI superata.
 - [x] Mostrare tre suggerimenti scelti casualmente da un catalogo di dieci a ogni avvio dell'app, senza inviare richieste automaticamente; build UI superata.
 - [x] Rendere dinamico il saluto in base all'ora e aggiungere suggerimenti iniziali modificabili, che vengono inseriti nel campo senza invio automatico; build UI superata.
 - [x] Ridurre la colonna della mascotte al 28% dell'area disponibile e limitare la mascotte a 250 px; build UI superata.

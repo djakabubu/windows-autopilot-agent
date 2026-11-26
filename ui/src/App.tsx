@@ -33,11 +33,66 @@ interface Approval {
   reasons: string[];
 }
 
+type ActivityStatus = "completed" | "failed" | "not-executed";
+
+interface ActivityStep {
+  id: number;
+  title: string;
+  resultMessageId: number;
+  descriptionMessageId: number | null;
+  status: ActivityStatus;
+}
+
 interface SavedConversation {
   id: string;
   title: string;
   updatedAt: number;
   messages: Message[];
+  activitySteps?: ActivityStep[];
+}
+
+function getActivityTitle(description: string | null, command: string, status: ActivityStatus) {
+  const cleanDescription = (description ?? "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[*_#>~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleanDescription) {
+    const firstSentence = cleanDescription.match(/^.{1,100}?[.!?](?:\s|$)/)?.[0]?.trim();
+    const title = firstSentence || cleanDescription;
+    return title.length > 100 ? `${title.slice(0, 97).trimEnd()}…` : title;
+  }
+  if (status === "not-executed") return "Comando rifiutato: non è stato eseguito";
+  if (status === "failed") return "Comando non riuscito";
+  const conciseCommand = command.replace(/\s+/g, " ").trim();
+  return `Comando completato: ${conciseCommand.slice(0, 74)}${conciseCommand.length > 74 ? "…" : ""}`;
+}
+
+function getActivitySteps(messages: Message[]): ActivityStep[] {
+  let latestAssistant: Message | null = null;
+  const steps: ActivityStep[] = [];
+  for (const message of messages) {
+    if (message.kind === "assistant") {
+      latestAssistant = message;
+    } else if (message.kind === "user") {
+      latestAssistant = null;
+    } else if (message.kind === "result") {
+      const status: ActivityStatus = message.code === 125
+        ? "not-executed"
+        : message.code === 0 ? "completed" : "failed";
+      steps.push({
+        id: message.id,
+        title: getActivityTitle(latestAssistant?.kind === "assistant" ? latestAssistant.text : null, message.command, status),
+        resultMessageId: message.id,
+        descriptionMessageId: latestAssistant?.kind === "assistant" ? latestAssistant.id : null,
+        status,
+      });
+      latestAssistant = null;
+    }
+  }
+  return steps;
 }
 
 const HISTORY_KEY = "winzi.conversations.v1";
@@ -150,7 +205,9 @@ function getWelcomeCopy(state: MascotState, hour = new Date().getHours()) {
 function App() {
   const initialSettings = useRef(loadSettings());
   const [messages, setMessages] = useState<Message[]>([greeting]);
-  const [visibleSuggestions] = useState(pickSuggestedPrompts);
+  const [visibleSuggestions, setVisibleSuggestions] = useState(pickSuggestedPrompts);
+  const activitySteps = getActivitySteps(messages);
+  const activityRef = useRef<HTMLDivElement>(null);
   const [conversations, setConversations] = useState<SavedConversation[]>(loadConversations);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => crypto.randomUUID());
   const [readOnly, setReadOnly] = useState(false);
@@ -317,6 +374,7 @@ function App() {
       title,
       updatedAt: Date.now(),
       messages,
+      activitySteps: getActivitySteps(messages),
     };
     setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)].slice(0, 100));
   }, [messages, activeConversationId]);
@@ -335,8 +393,15 @@ function App() {
     }
   }, [messages, approvals]);
 
+  useEffect(() => {
+    if (activityRef.current) {
+      activityRef.current.scrollTop = activityRef.current.scrollHeight;
+    }
+  }, [activitySteps.length, activeConversationId, readOnly]);
+
   const selectConversation = (conversation: SavedConversation) => {
     setMessages(conversation.messages);
+    setVisibleSuggestions(pickSuggestedPrompts());
     setActiveConversationId(conversation.id);
     setReadOnly(true);
     setOpenPanel(null);
@@ -397,6 +462,7 @@ function App() {
     }
     nextId.current = 2;
     setMessages([greeting]);
+    setVisibleSuggestions(pickSuggestedPrompts());
     setActiveConversationId(crypto.randomUUID());
     setReadOnly(false);
     setApprovals([]);
@@ -427,7 +493,35 @@ function App() {
           </nav>
           <h1 aria-live="polite">{welcomeCopy.title}</h1>
           <p className="subhead">{welcomeCopy.subtitle}</p>
-          {messages.length === 1 && messages[0]?.id === greeting.id && (
+          {activitySteps.length > 0 ? (
+            <section className="activity-list" aria-label="Operazioni di questa chat">
+              <h2>Operazioni in questa chat</h2>
+              <div className="activity-scroll" ref={activityRef}>
+                <ol>
+                  {activitySteps.map((step) => (
+                    <li key={step.id}>
+                      <button
+                        className={`activity-link activity-${step.status}`}
+                        type="button"
+                        title="Vai al passaggio nella chat"
+                        onClick={() => {
+                          const target = document.getElementById(`message-${step.descriptionMessageId ?? step.resultMessageId}`);
+                          target?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          target?.focus({ preventScroll: true });
+                        }}
+                      >
+                        <span className="activity-status" aria-hidden="true">
+                          {step.status === "completed" ? "✓" : step.status === "failed" ? "!" : "–"}
+                        </span>
+                        <span>{step.title}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <p className="activity-note">Seleziona un’operazione per ritrovare il relativo passaggio nella chat.</p>
+            </section>
+          ) : messages.length === 1 && messages[0]?.id === greeting.id ? (
             <section className="quick-start" aria-label="Idee per iniziare">
               <h2>Non sai da dove iniziare?</h2>
               <p>Scegli un esempio: lo inserirò nella casella, senza inviarlo.</p>
@@ -449,7 +543,7 @@ function App() {
               </div>
               <p className="quick-start-note">Winzi non controlla né modifica il PC da sola. Prima di inviare, puoi adattare la richiesta; i comandi proposti restano visibili e soggetti alle impostazioni di conferma.</p>
             </section>
-          )}
+          ) : null}
           <div className="mascot-stage" data-state={mascotState} data-variant={mascotVariant ?? undefined}>
             <Mascot state={mascotState} variant={mascotVariant} />
           </div>
@@ -482,7 +576,12 @@ function App() {
 
           <div className="messages" ref={messagesRef} aria-live="polite" aria-relevant="additions">
             {messages.map((message) => (
-              <article className={`message ${message.kind}`} key={message.id}>
+              <article
+                className={`message ${message.kind}`}
+                id={`message-${message.id}`}
+                key={message.id}
+                tabIndex={-1}
+              >
                 {message.kind === "result" ? (
                   <>
                     <div className="result-heading">
